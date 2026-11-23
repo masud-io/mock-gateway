@@ -9,7 +9,7 @@ cd "$(dirname "$0")/../.."
 HOST="${HOST:-127.0.0.1}"
 if [ "$HOST" != "127.0.0.1" ]; then
   LAN_IP="$(ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1 2>/dev/null || true)"
-  echo "Listening on $HOST. Team URL: http://${LAN_IP:-<this Mac's IP>}:3000"
+  echo "Listening on $HOST. Team URL: http://${LAN_IP:-YOUR-MAC-IP}:3000"
 fi
 
 [ -d node_modules ] || { echo "Dependencies missing: run ./scripts/mac/setup.sh first" >&2; exit 1; }
