@@ -1,9 +1,8 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { Suspense } from "react";
-import { CommandPalette } from "@/components/command-palette";
+import { AppShell } from "@/components/app-shell";
 import { Providers } from "@/components/providers";
-import { Sidebar } from "@/components/sidebar";
 import "./globals.css";
 
 const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
@@ -19,16 +18,12 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     <html lang="en" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
       <body className="h-full">
         <Providers>
-          <div className="flex h-full">
-            {/* Sidebar and pages read the URL and fetch on the client, so each sits behind a Suspense boundary (Cache Components) */}
-            <Suspense fallback={<aside className="w-72 shrink-0 border-r border-zinc-200 dark:border-zinc-800" />}>
-              <Sidebar />
-            </Suspense>
-            <main className="min-w-0 flex-1 overflow-y-auto">
+          {/* The shell reads the URL (hides the sidebar on /login), so it sits behind a Suspense boundary (Cache Components) */}
+          <Suspense fallback={null}>
+            <AppShell>
               <Suspense fallback={<p className="p-6 text-sm text-zinc-500">Loading…</p>}>{children}</Suspense>
-            </main>
-          </div>
-          <CommandPalette />
+            </AppShell>
+          </Suspense>
         </Providers>
       </body>
     </html>

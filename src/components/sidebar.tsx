@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useMemo, useState } from "react";
-import { api, type TreeClient } from "@/lib/api";
+import { api, type AuthStatus, type TreeClient } from "@/lib/api";
 import { OPEN_PALETTE } from "./command-palette";
 import { cx, MethodBadge } from "./ui";
 
@@ -32,6 +32,7 @@ function filterTree(tree: TreeClient[], q: string): TreeClient[] {
 export function Sidebar() {
   const pathname = usePathname();
   const { data: tree, error, isLoading } = useQuery({ queryKey: ["tree"], queryFn: () => api<TreeClient[]>("GET", "/tree") });
+  const { data: auth } = useQuery({ queryKey: ["auth"], queryFn: () => api<AuthStatus>("GET", "/auth/status") });
   const [q, setQ] = useState("");
   // Bumping `ver` remounts the <details>, which re-applies their `open` default (expand/collapse everything)
   const [fold, setFold] = useState<{ ver: number; open: boolean | null }>({ ver: 0, open: null });
@@ -46,6 +47,7 @@ export function Sidebar() {
         <nav className="mt-2 flex gap-1 text-xs">
           <Link href="/" className={link(pathname === "/")}>Home</Link>
           <Link href="/logs" className={link(pathname === "/logs")}>Request log</Link>
+          {auth?.authRequired && <Link href="/users" className={link(pathname === "/users")}>Users</Link>}
         </nav>
       </div>
       <div className="space-y-1.5 border-b border-zinc-200 px-3 py-2 dark:border-zinc-800">
@@ -104,6 +106,23 @@ export function Sidebar() {
           </details>
         ))}
       </div>
+      {auth?.user && (
+        <div className="flex items-center justify-between gap-2 border-t border-zinc-200 px-4 py-2 text-xs dark:border-zinc-800">
+          <span className="truncate text-zinc-600 dark:text-zinc-400" title={auth.user.email}>{auth.user.name}</span>
+          <button
+            type="button"
+            className="shrink-0 rounded border border-zinc-300 px-1.5 py-0.5 hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800"
+            onClick={async () => { await api("POST", "/auth/logout", {}).catch(() => {}); // Full reload on purpose: drops every cached query from the signed-out session
+              // eslint-disable-next-line @next/next/no-location-assign-relative-destination
+              location.href = "/login"; }}
+          >Sign out</button>
+        </div>
+      )}
+      {auth && !auth.authRequired && (
+        <p className="border-t border-amber-300 bg-amber-50 px-4 py-2 text-[11px] text-amber-800 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-300">
+          No login set up: only this machine can use the admin UI. <Link href="/login" className="font-medium underline">Create the first admin</Link> to share it.
+        </p>
+      )}
     </aside>
   );
 }

@@ -70,6 +70,14 @@ export async function api<T = unknown>(method: string, path: string, body?: unkn
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
   const data = await res.json().catch(() => ({}));
+  if (res.status === 401 && (data as { login?: boolean }).login && typeof window !== "undefined" && !location.pathname.startsWith("/login")) {
+    // Session missing or expired: go sign in, then come back here
+    // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- full reload on purpose
+    location.href = `/login?next=${encodeURIComponent(location.pathname + location.search)}`;
+  }
   if (!res.ok) throw new ApiError(res.status, (data as { error?: string }).error ?? `Request failed (${res.status})`);
   return data as T;
 }
+
+export interface AdminUser { id: string; email: string; name: string; createdAt: string }
+export interface AuthStatus { authRequired: boolean; setupNeeded: boolean; canSetup: boolean; user: AdminUser | null }
