@@ -24,6 +24,8 @@ On macOS there are helper scripts (Node 20+, e.g. `brew install node`):
 ./scripts/mac/test.sh           # typecheck, lint, tests
 ```
 
+To share it with your team on the same network: `HOST=0.0.0.0 ./scripts/mac/start.sh` prints a URL like `http://192.168.1.25:3000`. The admin UI has no login, so only do this on a network you trust.
+
 If a script isn't executable after cloning: `chmod +x scripts/mac/*.sh`.
 
 For a production-style run: `npm run build && npm start`.
