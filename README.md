@@ -24,13 +24,24 @@ On macOS there are helper scripts (Node 20+, e.g. `brew install node`):
 ./scripts/mac/test.sh           # typecheck, lint, tests
 ```
 
-To share it with your team on the same network: `HOST=0.0.0.0 ./scripts/mac/start.sh` prints a URL like `http://192.168.1.25:3000`. The admin UI has no login, so only do this on a network you trust.
+To share it with your team on the same network: create an admin account first (below), then `HOST=0.0.0.0 ./scripts/mac/start.sh` prints a URL like `http://192.168.1.25:3000`. The script refuses to listen on the network until an admin exists. Use `start.sh` (production) rather than `dev.sh` for this: Next's dev server blocks hot-reload requests from other addresses.
 
 If a script isn't executable after cloning: `chmod +x scripts/mac/*.sh`.
 
 For a production-style run: `npm run build && npm start`.
 
-The server binds to `127.0.0.1` on purpose: the admin UI/API has no login (solo local tool).
+By default the server binds to `127.0.0.1` (this machine only).
+
+## Admin login
+
+The admin UI and API (`/api/admin`) sit behind a login; the mock endpoints (`/mock/...`) never do.
+
+- **Before any admin exists**, only requests addressed to `localhost` can use the admin API. Open `http://localhost:3000/login` on the machine running the gateway and create the first admin there (this can't be done from another machine).
+  Or from a terminal, with the app stopped: `npm run admin -- create you@example.com "Your Name"`.
+- **After that**, every admin request needs a session: sign in at `/login`. Sessions last 7 days, use an HttpOnly cookie, and end when the password changes. Add or remove users and change your password on the **Users** page.
+- **Forgot the password?** Stop the app and run `npm run admin -- create <email>` again: it resets that user's password. `npm run admin -- list` shows the accounts.
+- Passwords are stored as salted scrypt hashes. After 8 wrong passwords for an email, sign-in is blocked for 15 minutes.
+- All admins can do everything (no roles yet). The login is plain HTTP on a LAN; put it behind HTTPS (e.g. a reverse proxy or Tailscale) before using it over an untrusted network. The cookie gets the `Secure` flag automatically when served over HTTPS.
 
 ## URLs
 
