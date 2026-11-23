@@ -1,42 +1,23 @@
 import { ZodError } from "zod";
 import { compilePath, matchPath, type CompiledPath } from "../../core/path";
 import { invalidateRuntimeCache } from "../repository";
+import { gate } from "./auth";
+import { handleAuthRoute } from "./auth-routes";
 import { HttpError, routes, type Route } from "./handlers";
+import { csrfProblem, json } from "./http";
 
 const PREFIX = "/api/admin";
 const compiled: { route: Route; path: CompiledPath }[] = routes.map((route) => ({ route, path: compilePath(route.path) }));
 
-const json = (status: number, payload: unknown) =>
-  new Response(JSON.stringify(payload), { status, headers: { "content-type": "application/json", "cache-control": "no-store" } });
-
-/**
- * The admin API has no login (solo local tool), so a malicious web page must not be able to drive it
- * from the user's browser. Writes therefore need (a) a same-origin Origin header when one is sent and
- * (b) a JSON content type, which a cross-site form or simple fetch cannot send without a CORS preflight
- * (and we never answer preflights).
- */
-function csrfProblem(request: Request): string | null {
-  if (request.method === "GET") return null;
-  const origin = request.headers.get("origin");
-  if (origin) {
-    let sameHost = false;
-    try {
-      sameHost = new URL(origin).host === request.headers.get("host");
-    } catch {
-      /* malformed origin stays rejected */
-    }
-    if (!sameHost) return "Cross-origin requests to the admin API are not allowed";
-  }
-  const hasBody = Number(request.headers.get("content-length") ?? 0) > 0;
-  if (hasBody && !(request.headers.get("content-type") ?? "").toLowerCase().startsWith("application/json")) {
-    return "Admin API writes must use Content-Type: application/json";
-  }
-  return null;
-}
-
 export async function handleAdmin(request: Request): Promise<Response> {
   const url = new URL(request.url);
   const path = url.pathname.startsWith(PREFIX) ? url.pathname.slice(PREFIX.length) || "/" : url.pathname;
+
+  if (path.startsWith("/auth/")) return handleAuthRoute(request, path);
+
+  // Closed unless signed in (or, before any admin exists, addressed to this machine). Checked before routing so strangers learn nothing.
+  const denied = await gate(request);
+  if (denied) return json(denied.status, { error: denied.error, ...(denied.login ? { login: true } : {}) });
 
   let hit: { route: Route; params: Record<string, string> } | null = null;
   let pathKnown = false;

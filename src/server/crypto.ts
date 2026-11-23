@@ -1,4 +1,4 @@
-import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
+import { createCipheriv, createDecipheriv, createHmac, randomBytes } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
@@ -28,6 +28,11 @@ function loadKey(): Buffer {
   }
   g.__mockKey = key;
   return key;
+}
+
+/** A per-purpose secret derived from the master key (never use the master key directly for signing). */
+export function derivedSecret(label: string): Buffer {
+  return createHmac("sha256", loadKey()).update(label).digest();
 }
 
 export function encryptSecret(plain: string): string {
