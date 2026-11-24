@@ -37,11 +37,26 @@ export default function CollectionPage() {
         <p className="text-xs text-zinc-500">{client.name} / <Link href={`/projects/${project.id}`} className="hover:underline">{project.name}</Link> / API</p>
         <div className="flex items-center justify-between gap-3">
           <h1 className="flex items-center gap-2 text-xl font-bold">{collection.name} <Badge tone="indigo">{collection.protocol.toUpperCase()}</Badge></h1>
-          <Button variant="danger" small onClick={async () => {
-            if (!confirm(`Delete "${collection.name}" and stop serving its endpoints?`)) return;
-            const r = await mutate("DELETE", `/collections/${id}`, undefined, { ok: "Collection deleted" });
-            if (!r.error) router.push(`/projects/${project.id}`);
-          }}>Delete</Button>
+          <div className="flex gap-2">
+            <Button small title="Download this API as a JSON file (no credentials or secrets)" onClick={async () => {
+              try {
+                const file = await api<unknown>("GET", `/collections/${id}/export`);
+                const url = URL.createObjectURL(new Blob([JSON.stringify(file, null, 2)], { type: "application/json" }));
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = `${collection.slug}.mockgw.json`;
+                a.click();
+                URL.revokeObjectURL(url);
+              } catch (e) {
+                alert(e instanceof Error ? e.message : "Export failed");
+              }
+            }}>Export</Button>
+            <Button variant="danger" small onClick={async () => {
+              if (!confirm(`Delete "${collection.name}" and stop serving its endpoints?`)) return;
+              const r = await mutate("DELETE", `/collections/${id}`, undefined, { ok: "Collection deleted" });
+              if (!r.error) router.push(`/projects/${project.id}`);
+            }}>Delete</Button>
+          </div>
         </div>
         <MockUrl path={data.mockBase} />
         <p className="text-xs text-zinc-500">Point your app at this base URL instead of the real provider. Paths after it are the provider&apos;s own paths.</p>

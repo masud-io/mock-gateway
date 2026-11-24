@@ -20,6 +20,7 @@ export default function ProjectPage() {
   const [colName, setColName] = useState("");
   const [colProto, setColProto] = useState<"rest" | "soap">("rest");
   const [formError, setFormError] = useState<string>();
+  const [importNotes, setImportNotes] = useState<string[]>([]);
 
   if (error) return <div className="p-6"><ErrorText>{(error as Error).message}</ErrorText></div>;
   if (!data) return <p className="p-6 text-sm text-zinc-500">Loading…</p>;
@@ -93,6 +94,30 @@ export default function ProjectPage() {
           <Button type="submit" variant="primary" disabled={!colName.trim()}>Add API</Button>
         </form>
         <div className="mt-2"><ErrorText>{formError}</ErrorText></div>
+        <div className="mt-4 border-t border-zinc-200 pt-3 dark:border-zinc-800">
+          <Field label="Import an API from a file" hint="A .mockgw.json file from another project or machine. It is added as a new API; nothing existing is changed.">
+            <input type="file" accept=".json,application/json" className="block text-sm file:mr-3 file:rounded-md file:border file:border-zinc-300 file:bg-white file:px-3 file:py-1.5 file:text-sm dark:file:border-zinc-700 dark:file:bg-zinc-900"
+              onChange={async (e) => {
+                const input = e.target;
+                const f = input.files?.[0];
+                if (!f) return;
+                setImportNotes([]);
+                let parsed: unknown;
+                try {
+                  parsed = JSON.parse(await f.text());
+                } catch {
+                  setFormError("That file is not valid JSON.");
+                  input.value = "";
+                  return;
+                }
+                const r = await mutate<{ id: string; name: string; endpoints: number; rules: number; warnings: string[] }>("POST", `/projects/${id}/import`, parsed, { ok: "API imported", silentError: true });
+                setFormError(r.error);
+                if (r.data) setImportNotes([`Imported “${r.data.name}”: ${r.data.endpoints} endpoint(s), ${r.data.rules} rule(s).`, ...r.data.warnings]);
+                input.value = "";
+              }} />
+          </Field>
+          {importNotes.length > 0 && <ul className="mt-2 list-disc space-y-0.5 pl-5 text-xs text-zinc-600 dark:text-zinc-400">{importNotes.map((n) => <li key={n}>{n}</li>)}</ul>}
+        </div>
       </Card>
 
       <div className="grid gap-6 lg:grid-cols-2">
