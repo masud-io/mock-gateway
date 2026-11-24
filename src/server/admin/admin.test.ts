@@ -98,6 +98,26 @@ describe("admin API", () => {
     await api("DELETE", `/rules/${b.id}`);
   });
 
+  it("duplicates a rule; a copy of the default does not take over every request", async () => {
+    const cond = [{ source: "query", expr: "k", op: "equals", value: "v" }];
+    const c = (await api("POST", `/endpoints/${endpointId}/rules`, { name: "C", status: 230, body: "{}", conditions: cond })).data;
+    const copy = await api("POST", `/rules/${c.id}/duplicate`);
+    expect(copy.status).toBe(201);
+    expect(copy.data).toMatchObject({ name: "C copy", status: 230, isDefault: false, conditions: cond });
+    expect(copy.data.id).not.toBe(c.id);
+
+    const rules = (await api("GET", `/endpoints/${endpointId}`)).data.rules;
+    const def = rules.find((r: any) => r.isDefault);
+    const dCopy = (await api("POST", `/rules/${def.id}/duplicate`)).data;
+    expect(dCopy).toMatchObject({ name: `${def.name} copy`, isDefault: false });
+    expect(dCopy.conditions).toHaveLength(1); // the never-matching placeholder
+    expect((await callMock("acme-corp/checkout/payments/orders/1")).status).toBe(201); // the real default still answers
+    expect((await api("GET", `/endpoints/${endpointId}`)).data.rules.filter((r: any) => r.isDefault)).toHaveLength(1);
+
+    for (const id of [c.id, copy.data.id, dCopy.id]) await api("DELETE", `/rules/${id}`);
+    expect((await api("POST", `/rules/${crypto.randomUUID()}/duplicate`)).status).toBe(404);
+  });
+
   it("rejects broken templates, bad schemas and bad rules with a useful message", async () => {
     const t = await api("PATCH", `/rules/${ruleId}`, { body: "{{#if}}" });
     expect(t.status).toBe(422);

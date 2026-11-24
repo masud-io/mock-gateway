@@ -142,6 +142,7 @@ export function RuleCard({ rule, scenarios, sampleParams, soapOperation, positio
           <div className="flex items-center justify-between">
             <Button variant="danger" small onClick={() => confirm(`Delete rule "${rule.name}"?`) && mutate("DELETE", `/rules/${rule.id}`, undefined, { ok: "Rule deleted" })}>Delete rule</Button>
             <div className="flex gap-2">
+              <Button disabled={dirty} title={dirty ? "Save or discard your changes first: the copy is made from the saved rule" : undefined} onClick={() => mutate("POST", `/rules/${rule.id}/duplicate`, undefined, { ok: "Rule duplicated" })}>Duplicate</Button>
               <Button disabled={!dirty} onClick={() => { setD(editable(rule)); setError(undefined); }}>Discard changes</Button>
               <Button variant="primary" disabled={!dirty} onClick={save}>Save rule <span className="text-[10px] opacity-70">Ctrl+S</span></Button>
             </div>

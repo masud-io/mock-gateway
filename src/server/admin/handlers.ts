@@ -3,6 +3,7 @@ import { z } from "zod";
 import { getDb, schema } from "../../db";
 import { renderTemplate, checkTemplate, TemplateError, type TemplateContext } from "../../core/template";
 import { checkSchema } from "../../core/validate";
+import type { Matcher } from "../../core/types";
 import { buildTemplate, buildXmlTemplate, inferPath, inferSchema, parseCurl } from "../../core/infer";
 import { parseEnvelope, parseWsdl, wrapEnvelope } from "../../core/soap";
 import { encryptSecret, decryptSecret } from "../crypto";
@@ -724,6 +725,19 @@ export const routes: Route[] = [
       const { project } = await endpointContext(rule.endpointId);
       await assertRule({ ...rule, ...b }, project.id);
       const [row] = await db().update(responseRules).set({ ...b, updatedAt: new Date() }).where(eq(responseRules.id, params.id)).returning();
+      return row;
+    },
+  },
+  {
+    // Copy a rule as a normal (non-default) one, right after the original. A copy of a rule with no conditions (the default, say)
+    // would otherwise answer every request at once, so it gets a placeholder condition that never matches until it is edited.
+    method: "POST", path: "/rules/:id/duplicate", status: 201,
+    run: async ({ params }) => {
+      const rule = await one(db().select().from(responseRules).where(eq(responseRules.id, params.id)), "Rule");
+      const conditions: Matcher[] = rule.conditions.length ? rule.conditions : [{ source: "header", expr: "x-edit-me", op: "exists" }];
+      const [row] = await db().insert(responseRules).values({
+        ...omit(rule, ["id", "createdAt", "updatedAt"]), name: `${rule.name} copy`, isDefault: false, conditions,
+      }).returning();
       return row;
     },
   },
