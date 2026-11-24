@@ -118,6 +118,52 @@ describe("admin API", () => {
     expect((await api("POST", `/rules/${crypto.randomUUID()}/duplicate`)).status).toBe(404);
   });
 
+  it("exports an API and imports it as a new one, without secrets and without overwriting", async () => {
+    const col = (await api("POST", "/collections", { projectId, name: "Transfer Me" })).data;
+    const ep = (await api("POST", "/endpoints", { collectionId: col.id, name: "Ping", method: "POST", path: "/ping" })).data;
+    const def = (await api("GET", `/endpoints/${ep.id}`)).data.rules[0];
+    await api("PATCH", `/rules/${def.id}`, { name: "ok", status: 202, body: '{"pong":"{{vars.greeting}}"}' });
+    const scenarioId = (await api("POST", `/projects/${projectId}/scenarios`, { name: "export-fails" })).data.id;
+    expect((await api("POST", `/endpoints/${ep.id}/rules`, {
+      name: "declined", scenarioId, status: 402, body: '{"error":"declined"}', priority: 5,
+      conditions: [{ source: "body", expr: "$.amount", op: "not_equals", value: "1" }],
+    })).status).toBe(201);
+    await api("PUT", "/variables", { scope: "collection", scopeId: col.id, key: "greeting", value: "hello" });
+    await api("PUT", "/variables", { scope: "collection", scopeId: col.id, key: "token", value: "s3cret", isSecret: true });
+
+    const exp = await api("GET", `/collections/${col.id}/export`);
+    expect(exp.status).toBe(200);
+    expect(exp.data).toMatchObject({ format: "mock-gateway/collection", version: 1, collection: { name: "Transfer Me", protocol: "rest" } });
+    expect(exp.data.variables).toEqual([{ key: "greeting", value: "hello" }]);
+    expect(exp.data.excluded.secretVariables).toBe(1);
+    expect(JSON.stringify(exp.data)).not.toContain("s3cret");
+    expect(exp.data.endpoints[0].rules.map((r: any) => r.scenario)).toContain("export-fails"); // by name, not id
+
+    // Import into the same project: the slug is taken, so it gets a suffix; the original is untouched
+    const imp = await api("POST", `/projects/${projectId}/import`, exp.data);
+    expect(imp.status).toBe(201);
+    expect(imp.data).toMatchObject({ slug: "transfer-me-2", name: "Transfer Me (2)", endpoints: 1, rules: 2 });
+    expect(imp.data.warnings.join(" ")).toContain("secret variable");
+    const res = await callMock("acme-corp/checkout/transfer-me-2/ping", { method: "POST", body: "{}", headers: { "content-type": "application/json" } });
+    expect(res.status).toBe(202);
+    expect(await res.json()).toEqual({ pong: "hello" });
+    const back = (await api("GET", `/collections/${imp.data.id}/export`)).data;
+    expect(back.endpoints[0].rules).toEqual(exp.data.endpoints[0].rules); // round trip is lossless
+    expect(back.endpoints[0].rules.find((r: any) => r.scenario)?.conditions).toEqual([{ source: "body", expr: "$.amount", op: "not_equals", value: "1" }]);
+    expect((await callMock("acme-corp/checkout/transfer-me/ping", { method: "POST", body: "{}", headers: { "content-type": "application/json" } })).status).toBe(202);
+
+    // Bad files import nothing
+    expect((await api("POST", `/projects/${projectId}/import`, { hello: "world" })).status).toBe(400);
+    expect((await api("POST", `/projects/${projectId}/import`, { ...exp.data, version: 99 })).status).toBe(400);
+    const broken = structuredClone(exp.data);
+    broken.endpoints[0].rules[0].body = "{{#if}}";
+    const before = (await api("GET", `/projects/${projectId}`)).data.collections.length;
+    expect((await api("POST", `/projects/${projectId}/import`, broken)).status).toBe(422);
+    expect((await api("GET", `/projects/${projectId}`)).data.collections.length).toBe(before);
+    expect((await api("GET", `/collections/${crypto.randomUUID()}/export`)).status).toBe(404);
+    expect((await api("POST", `/projects/${crypto.randomUUID()}/import`, exp.data)).status).toBe(404);
+  });
+
   it("rejects broken templates, bad schemas and bad rules with a useful message", async () => {
     const t = await api("PATCH", `/rules/${ruleId}`, { body: "{{#if}}" });
     expect(t.status).toBe(422);

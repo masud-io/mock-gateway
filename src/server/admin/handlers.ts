@@ -7,6 +7,7 @@ import type { Matcher } from "../../core/types";
 import { buildTemplate, buildXmlTemplate, inferPath, inferSchema, parseCurl } from "../../core/infer";
 import { parseEnvelope, parseWsdl, wrapEnvelope } from "../../core/soap";
 import { encryptSecret, decryptSecret } from "../crypto";
+import { exportCollection, importCollection, TransferError } from "./transfer";
 
 const {
   clients, projects, collections, endpoints, scenarios, responseRules, variables,
@@ -369,6 +370,29 @@ export const routes: Route[] = [
       const { collection } = await collectionContext(params.id);
       await db().update(collections).set({ deletedAt: new Date(), slug: tombstone(collection.slug) }).where(eq(collections.id, collection.id));
       return { ok: true };
+    },
+  },
+
+  // ----- export / import of one API -----
+  {
+    method: "GET", path: "/collections/:id/export", readonly: true,
+    run: async ({ params }) => {
+      try {
+        return await exportCollection(params.id);
+      } catch (e) {
+        throw e instanceof TransferError ? new HttpError(e.status, e.message) : e;
+      }
+    },
+  },
+  {
+    method: "POST", path: "/projects/:id/import", status: 201,
+    run: async ({ params, body }) => {
+      await projectContext(params.id);
+      try {
+        return await importCollection(params.id, body);
+      } catch (e) {
+        throw e instanceof TransferError ? new HttpError(e.status, e.message) : e;
+      }
     },
   },
 
