@@ -63,7 +63,7 @@ export default function CollectionPage() {
         )}
         <form className="flex flex-wrap items-start gap-2" onSubmit={async (e) => {
           e.preventDefault();
-          const r = await mutate<{ id: string }>("POST", "/endpoints", soap ? { collectionId: id, name: name.trim(), operation: operation.trim(), soapAction: soapAction.trim() } : { collectionId: id, name: name.trim(), method, path: path.trim() }, { ok: "Endpoint created", silentError: true });
+          const r = await mutate<{ id: string }>("POST", "/endpoints", soap ? { collectionId: id, name: name.trim(), operation: operation.trim(), soapAction: soapAction.trim(), path: path.trim() || "/" } : { collectionId: id, name: name.trim(), method, path: path.trim() }, { ok: "Endpoint created", silentError: true });
           setFormError(r.error);
           if (r.data) { setName(""); setPath("/"); setOperation(""); setSoapAction(""); router.push(`/endpoints/${r.data.id}`); }
         }}>
@@ -71,6 +71,7 @@ export default function CollectionPage() {
           {soap ? (
             <>
               <Field label="Operation" className="w-52" hint="First element inside the SOAP Body"><Input value={operation} onChange={(e) => setOperation(e.target.value)} placeholder="GetOrder" className="font-mono" required /></Field>
+              <Field label="Path (optional)" className="w-44" hint="Only used for the copied URL"><Input value={path} onChange={(e) => setPath(e.target.value)} placeholder="/getToken" className="font-mono" /></Field>
               <Field label="SOAPAction (optional)" className="min-w-52 flex-1"><Input value={soapAction} onChange={(e) => setSoapAction(e.target.value)} placeholder="urn:orders/GetOrder" className="font-mono" /></Field>
             </>
           ) : (

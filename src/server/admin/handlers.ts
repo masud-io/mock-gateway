@@ -452,7 +452,7 @@ export const routes: Route[] = [
       const soap = collection.protocol === "soap";
       if (soap && !b.operation) throw bad("A SOAP endpoint needs an operation: the name of the first element inside the SOAP Body");
       const [row] = soap
-        ? await db().insert(endpoints).values({ collectionId: b.collectionId, name: b.name, method: "POST", path: "/", operation: b.operation, soapAction: b.soapAction || null }).returning()
+        ? await db().insert(endpoints).values({ collectionId: b.collectionId, name: b.name, method: "POST", path: b.path, operation: b.operation, soapAction: b.soapAction || null }).returning()
         : await db().insert(endpoints).values({ collectionId: b.collectionId, name: b.name, method: b.method, path: b.path }).returning();
       // A new endpoint answers immediately with a placeholder instead of "no response rule"
       await db().insert(responseRules).values(
