@@ -124,6 +124,17 @@ describe("template", () => {
     expect([5, 6]).toContain(n);
     expect(renderTemplate('{{faker "person.fullName"}}', tctx()).length).toBeGreaterThan(2);
   });
+  it("randomString / randomDigits give the requested length and alphabet", () => {
+    expect(renderTemplate("{{randomString 24}}", tctx())).toMatch(/^[A-Za-z0-9]{24}$/);
+    expect(renderTemplate("{{randomDigits 12}}", tctx())).toMatch(/^\d{12}$/);
+    // Leading zeros survive, unlike randomInt
+    const many = Array.from({ length: 200 }, () => renderTemplate("{{randomDigits 6}}", tctx()));
+    expect(many.some((s) => s.startsWith("0"))).toBe(true);
+    expect(new Set(many).size).toBeGreaterThan(150);
+    for (const bad of ["{{randomString}}", "{{randomString 0}}", "{{randomDigits 1001}}", "{{randomDigits 2.5}}", '{{randomString "x"}}']) {
+      expect(() => renderTemplate(bad, tctx())).toThrow(TemplateError);
+    }
+  });
   it("rejects bad or unsafe faker paths", () => {
     expect(() => renderTemplate('{{faker "nope.x"}}', tctx())).toThrow(TemplateError);
     expect(() => renderTemplate('{{faker "constructor"}}', tctx())).toThrow(TemplateError);

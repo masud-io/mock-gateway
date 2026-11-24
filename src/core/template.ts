@@ -1,5 +1,5 @@
 import Handlebars from "handlebars";
-import { randomUUID } from "node:crypto";
+import { randomInt, randomUUID } from "node:crypto";
 import { faker } from "@faker-js/faker/locale/en";
 import { escapeXml, faultXml, type SoapVersion } from "./soap";
 
@@ -58,6 +58,18 @@ hbs.registerHelper("randomInt", (...a: unknown[]) => {
   const [min = 0, max = 100] = args(a).map(num);
   return String(faker.number.int({ min, max }));
 });
+
+// {{randomString 24}} -> 24 random letters and digits; {{randomDigits 12}} -> 12 digits, leading zeros kept (a reference number, say).
+const ALNUM = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+const randomChars = (name: string, a: unknown[], alphabet: string) => {
+  const n = num(args(a)[0] ?? Number.NaN);
+  if (!Number.isInteger(n) || n < 1 || n > 1000) throw new TemplateError(`${name} needs a length from 1 to 1000, e.g. {{${name} 12}}`);
+  let out = "";
+  for (let i = 0; i < n; i++) out += alphabet[randomInt(alphabet.length)];
+  return out;
+};
+hbs.registerHelper("randomString", (...a: unknown[]) => randomChars("randomString", a, ALNUM));
+hbs.registerHelper("randomDigits", (...a: unknown[]) => randomChars("randomDigits", a, "0123456789"));
 
 // {{faker "person.fullName"}}, {{faker "finance.amount"}}, {{faker "string.uuid"}} ...
 hbs.registerHelper("faker", (...a: unknown[]) => {

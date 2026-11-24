@@ -85,6 +85,7 @@ Add an API with protocol **SOAP**. A SOAP API has one base URL (`/mock/{client}/
 Bodies are Handlebars templates (not HTML-escaped):
 `{{request.params.id}}` `{{request.body.user.name}}` `{{request.query.page}}` `{{request.headers.x-tenant}}`
 `{{vars.name}}` `{{uuid}}` `{{now}}` `{{now days=1}}` `{{faker "person.fullName"}}` `{{randomInt 1 10}}`
+`{{randomString 24}}` (letters and digits) `{{randomDigits 12}}` (digits, leading zeros kept)
 `{{json value}}` (valid JSON, quotes escaped) `{{sum request.body.items "price"}}`
 `{{#repeat 3}}…{{@index}}…{{/repeat}}`
 
