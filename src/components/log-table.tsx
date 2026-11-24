@@ -81,6 +81,7 @@ function Block({ title, text, empty }: { title: string; text: string; empty?: st
 export function LogTable({ projectId, collectionId, limit = 50 }: { projectId?: string; collectionId?: string; limit?: number }) {
   const [status, setStatus] = useState("");
   const [q, setQ] = useState("");
+  const [rule, setRule] = useState("");
   const [open, setOpen] = useState<number | null>(null);
   const [paused, setPaused] = useState(false);
   const mutate = useMutate();
@@ -90,6 +91,7 @@ export function LogTable({ projectId, collectionId, limit = 50 }: { projectId?: 
   if (collectionId) qs.set("collectionId", collectionId);
   if (status) qs.set("status", status);
   if (q.trim()) qs.set("q", q.trim());
+  if (rule.trim()) qs.set("rule", rule.trim());
 
   const { data, error } = useQuery({
     queryKey: ["logs", qs.toString()],
@@ -101,6 +103,7 @@ export function LogTable({ projectId, collectionId, limit = 50 }: { projectId?: 
     <div>
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Filter by path…" className="max-w-56" aria-label="Filter by path" />
+        <Input value={rule} onChange={(e) => setRule(e.target.value)} placeholder="Filter by rule…" className="max-w-44" aria-label="Filter by rule name" />
         <Select value={status} onChange={(e) => setStatus(e.target.value)} className="w-36" aria-label="Filter by status">
           <option value="">All statuses</option><option value="2xx">2xx</option><option value="3xx">3xx</option><option value="4xx">4xx</option><option value="5xx">5xx</option><option value="miss">No match</option>
         </Select>
@@ -120,7 +123,7 @@ export function LogTable({ projectId, collectionId, limit = 50 }: { projectId?: 
         <div className="overflow-x-auto rounded-md border border-zinc-200 dark:border-zinc-800">
           <table className="w-full text-left text-sm">
             <thead className="bg-zinc-50 text-xs text-zinc-500 dark:bg-zinc-900">
-              <tr><th className="px-3 py-2">Time</th><th>Method</th><th>Path</th><th>Status</th><th>ms</th><th>Why</th></tr>
+              <tr><th className="px-3 py-2">Time</th><th>Method</th><th>Path</th><th>Status</th><th>Rule</th><th>ms</th><th>Why</th></tr>
             </thead>
             <tbody>
               {data.map((r) => (
@@ -129,6 +132,7 @@ export function LogTable({ projectId, collectionId, limit = 50 }: { projectId?: 
                   <td><MethodBadge method={r.method} /></td>
                   <td className="max-w-xs truncate font-mono text-xs">{r.path.replace(/^\/mock\//, "")}</td>
                   <td><StatusBadge status={r.responseStatus} /></td>
+                  <td className="max-w-40 truncate text-xs font-medium">{r.ruleName ?? <span className="text-zinc-400">–</span>}</td>
                   <td className="text-xs text-zinc-500">{r.durationMs}</td>
                   <td className="max-w-sm truncate text-xs text-zinc-600 dark:text-zinc-400">{!r.matched && <Badge tone="amber" className="mr-1">no match</Badge>}{r.explanation}</td>
                 </tr>

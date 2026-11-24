@@ -201,6 +201,14 @@ describe("admin API", () => {
     expect(misses.every((r: any) => r.matched === false)).toBe(true);
     expect((await api("GET", `/logs?projectId=${projectId}&status=4xx&q=missing`)).data.length).toBeGreaterThan(0);
     expect((await api("GET", `/logs?q=${encodeURIComponent("%")}`)).data.length).toBe(0); // % is literal, not a wildcard
+    // Rows say which rule answered, and can be filtered by it
+    const answered = all.find((r: any) => r.ruleName);
+    expect(answered).toBeTruthy();
+    const byRule = (await api("GET", `/logs?projectId=${projectId}&rule=${encodeURIComponent(answered.ruleName)}`)).data;
+    expect(byRule.length).toBeGreaterThan(0);
+    expect(byRule.every((r: any) => r.ruleName?.toLowerCase().includes(answered.ruleName.toLowerCase()))).toBe(true);
+    expect((await api("GET", `/logs?projectId=${projectId}&rule=${encodeURIComponent("no-such-rule-xyz")}`)).data).toEqual([]);
+    expect(all.find((r: any) => !r.matched).ruleName).toBeNull();
     const detail = (await api("GET", `/logs/${all[0].id}`)).data;
     expect(detail).toHaveProperty("responseBody");
     expect((await api("DELETE", `/logs?projectId=${projectId}`)).status).toBe(200);

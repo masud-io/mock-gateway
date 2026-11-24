@@ -796,6 +796,8 @@ export const routes: Route[] = [
         filters.push(and(gte(requestLogs.responseStatus, lo), lt(requestLogs.responseStatus, lo + 100)));
       }
       if (q) filters.push(ilike(requestLogs.path, `%${q.replace(/[%_\\]/g, "\\$&")}%`));
+      const rule = query.get("rule")?.trim();
+      if (rule) filters.push(ilike(responseRules.name, `%${rule.replace(/[%_\\]/g, "\\$&")}%`));
       const limit = Math.min(Number(query.get("limit") ?? 100) || 100, 500);
       // Summary columns only: bodies can be large and are fetched per row
       return db()
@@ -803,8 +805,10 @@ export const routes: Route[] = [
           id: requestLogs.id, at: requestLogs.at, method: requestLogs.method, path: requestLogs.path,
           responseStatus: requestLogs.responseStatus, durationMs: requestLogs.durationMs, matched: requestLogs.matched,
           explanation: requestLogs.explanation, projectId: requestLogs.projectId,
+          ruleName: responseRules.name, // null when no rule answered, or the rule has since been deleted
         })
         .from(requestLogs)
+        .leftJoin(responseRules, eq(requestLogs.ruleId, responseRules.id))
         .where(filters.length ? and(...filters) : undefined)
         .orderBy(desc(requestLogs.id))
         .limit(limit);

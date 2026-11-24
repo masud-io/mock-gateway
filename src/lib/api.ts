@@ -53,7 +53,7 @@ export interface EndpointDetail {
 }
 export interface LogRow {
   id: number; at: string; method: string; path: string; responseStatus: number; durationMs: number;
-  matched: boolean; explanation: string | null; projectId: string | null;
+  matched: boolean; explanation: string | null; projectId: string | null; ruleName: string | null;
 }
 export type LogDetail = J<typeof S.requestLogs.$inferSelect>;
 
