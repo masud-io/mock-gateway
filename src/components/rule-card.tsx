@@ -87,6 +87,7 @@ export function RuleCard({ rule, scenarios, sampleParams, soapOperation, positio
           {rule.isDefault && <Badge tone="indigo">default</Badge>}
           {scenarioName && <Badge tone="amber">scenario: {scenarioName}</Badge>}
           {rule.conditions.length > 0 && <Badge>{rule.conditions.length} condition{rule.conditions.length > 1 ? "s" : ""}</Badge>}
+          {!rule.isDefault && rule.conditions.length === 0 && !rule.scenarioId && <Badge tone="amber">no conditions: always matches</Badge>}
           {rule.delayMs > 0 && <Badge>{rule.delayMs} ms</Badge>}
           {dirty && <Badge tone="amber">unsaved</Badge>}
         </button>
@@ -112,6 +113,11 @@ export function RuleCard({ rule, scenarios, sampleParams, soapOperation, positio
           {!d.isDefault && (
             <Field label="Use this rule when ALL of these match" hint="Rules are tried in priority order; the first whose conditions all match answers. The default rule answers when none do.">
               <MatcherEditor value={d.conditions} onChange={(v) => set("conditions", v)} />
+              {d.conditions.length === 0 && !d.scenarioId && (
+                <span role="alert" className="mt-2 block rounded-md border border-amber-300 bg-amber-50 p-2 text-xs text-amber-900 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200">
+                  With no conditions and no scenario this rule matches every request, so the rules after it and the default rule will never answer. Add a condition, pick a scenario, or tick “Default rule”.
+                </span>
+              )}
             </Field>
           )}
 
