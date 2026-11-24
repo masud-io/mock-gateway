@@ -19,7 +19,7 @@ export function TryIt({ collectionId, mockBase, method, path, soap }: { collecti
   const origin = useOrigin();
   const [m, setM] = useState(soap ? "POST" : method === "*" ? "GET" : method);
   // Fill `:id` style params with a sample value so the URL is callable straight away
-  const [p, setP] = useState(soap ? "" : path.replace(/:[A-Za-z_]\w*/g, "1").replace(/\*/g, "example"));
+  const [p, setP] = useState(soap ? (path === "/" ? "" : path) : path.replace(/:[A-Za-z_]\w*/g, "1").replace(/\*/g, "example"));
   const [headers, setHeaders] = useState(() => loadHeaders(collectionId));
   const [body, setBody] = useState(() =>
     soap ? `<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">\n  <soap:Body>\n    <${soap.operation}>\n    </${soap.operation}>\n  </soap:Body>\n</soap:Envelope>` : "",
@@ -63,7 +63,7 @@ export function TryIt({ collectionId, mockBase, method, path, soap }: { collecti
       <div className="grid grid-cols-[minmax(0,1fr)] gap-3">
         <div className="flex flex-wrap items-end gap-2">
           {soap ? (
-            <p className="min-w-60 flex-1 break-all pb-2 font-mono text-xs text-zinc-500">POST {origin}{mockBase}</p>
+            <p className="min-w-60 flex-1 break-all pb-2 font-mono text-xs text-zinc-500">POST {origin}{mockBase}{p}</p>
           ) : (
             <>
               <Field label="Method"><Select value={m} onChange={(e) => setM(e.target.value)} className="w-28">{["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"].map((x) => <option key={x}>{x}</option>)}</Select></Field>
