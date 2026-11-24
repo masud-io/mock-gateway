@@ -38,6 +38,7 @@ export default function CollectionPage() {
         <div className="flex items-center justify-between gap-3">
           <h1 className="flex items-center gap-2 text-xl font-bold">{collection.name} <Badge tone="indigo">{collection.protocol.toUpperCase()}</Badge></h1>
           <div className="flex gap-2">
+            <Link href={`/collections/${id}/requests`} className="inline-flex items-center rounded-md border border-zinc-300 px-2 py-1 text-xs font-medium hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-900">Requests</Link>
             <Button small title="Download this API as a JSON file (no credentials or secrets)" onClick={async () => {
               try {
                 const file = await api<unknown>("GET", `/collections/${id}/export`);

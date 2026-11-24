@@ -6,6 +6,12 @@ type J<T> = T extends Date ? string : T extends (infer U)[] ? J<U>[] : T extends
 
 export type Rule = J<typeof S.responseRules.$inferSelect>;
 export type Scenario = J<typeof S.scenarios.$inferSelect>;
+export type SavedRequest = J<typeof S.savedRequests.$inferSelect>;
+/** What POST /collections/:id/send returns: the mock's answer plus what was actually sent (variables filled in) */
+export interface SendResult {
+  status: number; ms: number; body: string; headers: [string, string][];
+  sent: { method: string; url: string; headers: Record<string, string>; body: string };
+}
 export type Variable = J<typeof S.variables.$inferSelect>;
 export type Matcher = { source: "header" | "query" | "body" | "path"; expr: string; op: "equals" | "not_equals" | "contains" | "regex" | "exists" | "not_exists"; value?: string };
 export type ErrorTemplate = { status: number; contentType: string; body: string };
