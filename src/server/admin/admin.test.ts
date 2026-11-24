@@ -136,6 +136,72 @@ describe("admin API", () => {
     expect(await res.json()).toEqual({ code: "{{request.params.code}}", raw: "{{postmanVar}}" });
   });
 
+  it("saved requests: create, edit, copy, delete, and they are listed by folder then name", async () => {
+    const col = (await api("POST", "/collections", { projectId, name: "Client Tests" })).data;
+    const a = await api("POST", `/collections/${col.id}/requests`, { name: "Valid key", folder: "Auth", method: "POST", path: "/tokens", body: '{"k":1}', headers: { "x-a": "1" } });
+    expect(a.status).toBe(201);
+    expect(a.data).toMatchObject({ name: "Valid key", folder: "Auth", method: "POST", path: "/tokens", headers: { "x-a": "1" } });
+    const bare = (await api("POST", `/collections/${col.id}/requests`, {})).data;
+    expect(bare).toMatchObject({ name: "New request", folder: null, method: "GET", path: "/", body: "" });
+    expect((await api("PATCH", `/requests/${bare.id}`, { name: "Wrong key", folder: "  " })).data).toMatchObject({ name: "Wrong key", folder: null });
+    expect((await api("PATCH", `/requests/${bare.id}`, { method: "TELEPORT" })).status).toBe(400);
+    expect((await api("PATCH", `/requests/${crypto.randomUUID()}`, { name: "x" })).status).toBe(404);
+    const copy = (await api("POST", `/requests/${a.data.id}/duplicate`)).data;
+    expect(copy).toMatchObject({ name: "Valid key copy", folder: "Auth", body: '{"k":1}' });
+    expect(copy.id).not.toBe(a.data.id);
+    const list = (await api("GET", `/collections/${col.id}/requests`)).data;
+    expect(list.map((r: any) => r.name)).toEqual(["Valid key", "Valid key copy", "Wrong key"]); // folder "Auth" before no folder
+    expect((await api("DELETE", `/requests/${copy.id}`)).status).toBe(200);
+    expect((await api("GET", `/collections/${col.id}/requests`)).data).toHaveLength(2);
+    expect((await api("GET", `/collections/${crypto.randomUUID()}/requests`)).status).toBe(404);
+  });
+
+  it("sends a request to the mock in-process, filling in variables and helpers first", async () => {
+    // Its own client and project, so the variables below don't leak into the other tests
+    const cId = (await api("POST", "/clients", { name: "Sender Co" })).data.id;
+    const pId = (await api("POST", "/projects", { clientId: cId, name: "Tools" })).data.id;
+    const col = (await api("POST", "/collections", { projectId: pId, name: "Sender" })).data;
+    const ep = (await api("POST", "/endpoints", { collectionId: col.id, name: "Echo", method: "POST", path: "/echo/:id" })).data;
+    const def = (await api("GET", `/endpoints/${ep.id}`)).data.rules[0];
+    await api("PATCH", `/rules/${def.id}`, { status: 201, body: '{"id":"{{request.params.id}}","who":"{{request.headers.x-who}}","n":"{{request.body.n}}"}' });
+    // Variables: the API's value beats the project's, which beats the client's
+    await api("PUT", "/variables", { scope: "client", scopeId: cId, key: "who", value: "client" });
+    await api("PUT", "/variables", { scope: "project", scopeId: pId, key: "who", value: "project" });
+    await api("PUT", "/variables", { scope: "project", scopeId: pId, key: "orderId", value: "42" });
+    await api("PUT", "/variables", { scope: "collection", scopeId: col.id, key: "who", value: "api" });
+
+    const sent = await api("POST", `/collections/${col.id}/send`, {
+      method: "POST", path: "/echo/{{vars.orderId}}", headers: { "X-Who": "{{vars.who}}" }, body: '{"n":"{{randomDigits 5}}"}',
+    });
+    expect(sent.status).toBe(200);
+    expect(sent.data.status).toBe(201);
+    const echoed = JSON.parse(sent.data.body);
+    expect(echoed).toMatchObject({ id: "42", who: "api" });
+    expect(echoed.n).toMatch(/^\d{5}$/);
+    expect(sent.data.sent).toMatchObject({ method: "POST", url: "/mock/sender-co/tools/sender/echo/42" });
+    expect(sent.data.sent.headers["content-type"]).toBe("application/json"); // added, since the body looks like JSON
+    expect(sent.data.headers.some(([k]: string[]) => k === "x-mockgw-endpoint")).toBe(true);
+    expect(sent.data.ms).toBeGreaterThanOrEqual(0);
+
+    // It went through the real mock: a miss is a 404 from the engine, and the request log has both calls
+    const miss = await api("POST", `/collections/${col.id}/send`, { method: "GET", path: "nope" });
+    expect(miss.data.status).toBe(404);
+    expect(miss.data.sent.url).toBe("/mock/sender-co/tools/sender/nope"); // missing leading slash is added
+    for (let i = 0; i < 100; i++) {
+      if ((await api("GET", `/logs?projectId=${pId}`)).data.length >= 2) break;
+      await new Promise((r) => setTimeout(r, 20));
+    }
+    expect((await api("GET", `/logs?projectId=${pId}`)).data.length).toBeGreaterThanOrEqual(2);
+
+    // A bad template is reported, not sent; a GET never carries a body
+    expect((await api("POST", `/collections/${col.id}/send`, { method: "GET", path: "/{{#if}}" })).status).toBe(422);
+    const get = await api("POST", `/collections/${col.id}/send`, { method: "GET", path: "/echo/1", body: "ignored" });
+    expect(get.data.sent.body).toBe("");
+    expect((await api("POST", `/collections/${col.id}/send`, { method: "TELEPORT", path: "/" })).status).toBe(400);
+    expect((await api("POST", `/collections/${crypto.randomUUID()}/send`, { method: "GET", path: "/" })).status).toBe(404);
+    await api("DELETE", `/clients/${cId}`); // leave the shared tree as other tests expect it
+  });
+
   it("lists the fields of a pasted request, and a condition built from one makes the rule answer", async () => {
     const r = await api("POST", "/request-fields", { protocol: "soap", text: "<PayRequest><KeyID>229129</KeyID><AccountNo>0001</AccountNo></PayRequest>" });
     expect(r.status).toBe(200);

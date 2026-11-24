@@ -1,9 +1,10 @@
-import { and, desc, eq, gte, ilike, isNull, lt } from "drizzle-orm";
+import { and, desc, eq, gte, ilike, isNull, lt, or } from "drizzle-orm";
 import { z } from "zod";
 import { getDb, schema } from "../../db";
 import { renderTemplate, checkTemplate, TemplateError, type TemplateContext } from "../../core/template";
 import { checkSchema } from "../../core/validate";
 import { readRequestFields } from "../../core/fields";
+import { handleMockRequest } from "../handler";
 import type { Matcher } from "../../core/types";
 import { buildTemplate, buildXmlTemplate, inferPath, inferSchema, parseCurl } from "../../core/infer";
 import { parseEnvelope, parseWsdl, wrapEnvelope } from "../../core/soap";
@@ -11,7 +12,7 @@ import { encryptSecret, decryptSecret } from "../crypto";
 import { exportCollection, importCollection, TransferError } from "./transfer";
 
 const {
-  clients, projects, collections, endpoints, scenarios, responseRules, variables,
+  clients, projects, collections, endpoints, scenarios, responseRules, variables, savedRequests,
   authSchemes, authCredentials, requestLogs,
 } = schema;
 
@@ -103,6 +104,18 @@ const ruleDefaults = {
   name: "New rule", scenarioId: null, priority: 0, isDefault: false, conditions: [], status: 200,
   headers: {}, contentType: "application/json", body: "{}", delayMs: 0, faultType: null, faultRate: null,
 };
+
+const savedRequestInput = z.object({
+  name: z.string().trim().min(1).max(120),
+  folder: z.string().trim().max(120).nullable().transform((f) => f || null),
+  method: z.enum(["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"]),
+  path: z.string().max(2000),
+  headers: stringMap,
+  body: z.string().max(1_000_000),
+});
+const savedRequestDefaults = { name: "New request", folder: null, method: "GET", path: "/", headers: {}, body: "" };
+const sendInput = savedRequestInput.pick({ method: true, path: true, headers: true, body: true }).partial({ headers: true, body: true })
+  .transform((v) => ({ ...v, headers: v.headers ?? {}, body: v.body ?? "" }));
 
 const parse = <T extends z.ZodType>(s: T, v: unknown): z.infer<T> => s.parse(v);
 
@@ -773,6 +786,94 @@ export const routes: Route[] = [
     run: async ({ params }) => {
       await db().delete(responseRules).where(eq(responseRules.id, params.id));
       return { ok: true };
+    },
+  },
+
+  // ----- saved requests (the API client) -----
+  {
+    method: "GET", path: "/collections/:id/requests", readonly: true,
+    run: async ({ params }) => {
+      await collectionContext(params.id);
+      return db().select().from(savedRequests).where(eq(savedRequests.collectionId, params.id)).orderBy(savedRequests.folder, savedRequests.name);
+    },
+  },
+  {
+    method: "POST", path: "/collections/:id/requests", status: 201,
+    run: async ({ params, body }) => {
+      await collectionContext(params.id);
+      const b = parse(savedRequestInput.partial(), body ?? {});
+      const [row] = await db().insert(savedRequests).values({ ...savedRequestDefaults, ...b, collectionId: params.id }).returning();
+      return row;
+    },
+  },
+  {
+    method: "PATCH", path: "/requests/:id",
+    run: async ({ params, body }) => {
+      const b = parse(savedRequestInput.partial(), body);
+      const [row] = await db().update(savedRequests).set({ ...b, updatedAt: new Date() }).where(eq(savedRequests.id, params.id)).returning();
+      if (!row) throw new HttpError(404, "Request not found");
+      return row;
+    },
+  },
+  {
+    method: "POST", path: "/requests/:id/duplicate", status: 201,
+    run: async ({ params }) => {
+      const r = await one(db().select().from(savedRequests).where(eq(savedRequests.id, params.id)), "Request");
+      const [row] = await db().insert(savedRequests).values({ ...omit(r, ["id", "createdAt", "updatedAt"]), name: `${r.name} copy` }).returning();
+      return row;
+    },
+  },
+  {
+    method: "DELETE", path: "/requests/:id",
+    run: async ({ params }) => {
+      await db().delete(savedRequests).where(eq(savedRequests.id, params.id));
+      return { ok: true };
+    },
+  },
+  {
+    // Sends a request to this API's mock from inside the server: no network hop, no CORS, and it can only ever reach the mock.
+    // {{vars.x}} and the template helpers in the path, headers and body are filled in first (client < project < API variables).
+    method: "POST", path: "/collections/:id/send", readonly: true,
+    run: async ({ params, body }) => {
+      const { collection, project, client } = await collectionContext(params.id);
+      const b = parse(sendInput, body);
+      const rows = await db().select().from(variables).where(or(
+        and(eq(variables.scope, "client"), eq(variables.scopeId, client.id)),
+        and(eq(variables.scope, "project"), eq(variables.scopeId, project.id)),
+        and(eq(variables.scope, "collection"), eq(variables.scopeId, collection.id)),
+      ));
+      const vars: Record<string, string> = {};
+      for (const scope of ["client", "project", "collection"] as const) for (const v of rows) if (v.scope === scope) vars[v.key] = v.value;
+      const ctx: TemplateContext = { request: { method: b.method, path: "/", params: {}, query: {}, headers: {}, body: null, rawBody: "" }, vars, scenario: null };
+      const fill = (where: string, s: string) => {
+        try {
+          return renderTemplate(s, ctx);
+        } catch (e) {
+          throw new HttpError(422, `Template error in ${where}: ${e instanceof Error ? e.message : "could not render"}`);
+        }
+      };
+      const path = fill("the path", b.path);
+      const headers: Record<string, string> = {};
+      for (const [k, v] of Object.entries(b.headers)) if (k.trim()) headers[k.trim()] = fill(`header ${k}`, v);
+      const hasBody = !["GET", "HEAD"].includes(b.method) && b.body.trim() !== "";
+      const text = hasBody ? fill("the body", b.body) : "";
+      if (hasBody && !Object.keys(headers).some((k) => k.toLowerCase() === "content-type")) {
+        headers["content-type"] = collection.protocol === "soap" ? "text/xml; charset=utf-8" : /^\s*[{[]/.test(text) ? "application/json" : "text/plain";
+      }
+      const rel = path === "" || path.startsWith("/") || path.startsWith("?") ? path : `/${path}`;
+      const target = `${mockBase(client.slug, project.slug, collection.slug)}${rel}`;
+      const started = Date.now();
+      let res: Response;
+      try {
+        res = await handleMockRequest(new Request(`http://localhost${target}`, { method: b.method, headers, body: hasBody ? text : undefined }));
+      } catch (e) {
+        throw new HttpError(400, `Could not send that request: ${e instanceof Error ? e.message : "invalid request"}`);
+      }
+      const resBody = await res.text();
+      return {
+        status: res.status, ms: Date.now() - started, body: resBody, headers: [...res.headers.entries()],
+        sent: { method: b.method, url: target, headers, body: text },
+      };
     },
   },
 

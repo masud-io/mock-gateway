@@ -9,7 +9,8 @@ cd "$(dirname "$0")/../.."
 HOST="${HOST:-127.0.0.1}"
 
 [ -d node_modules ] || { echo "Dependencies missing: run ./scripts/mac/setup.sh first" >&2; exit 1; }
-[ -d .data/pg ] || npm run db:migrate
+# Migrations are safe to repeat: this creates the database the first time and adds any new tables after an update.
+npm run --silent db:migrate
 
 # Never expose the admin UI on the network before a login exists.
 if [ "$HOST" != "127.0.0.1" ] && ! npm run --silent admin -- status >/dev/null 2>&1; then

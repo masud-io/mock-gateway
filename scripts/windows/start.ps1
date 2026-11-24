@@ -24,7 +24,8 @@ if ($busy) {
 }
 
 if (-not (Test-Path node_modules)) { Write-Host "Installing dependencies..."; npm install; if ($LASTEXITCODE) { Fail "npm install failed" } }
-if (-not (Test-Path .data\pg)) { Write-Host "Creating the database..."; npm run db:migrate; if ($LASTEXITCODE) { Fail "Database setup failed" } }
+# Migrations are safe to repeat: this creates the database the first time and adds any new tables after an update.
+Write-Host "Preparing the database..."; npm run --silent db:migrate; if ($LASTEXITCODE) { Fail "Database setup failed" }
 
 if ($Share) {
   # Never expose the admin UI on the network before a login exists.

@@ -95,6 +95,24 @@ export const endpoints = pgTable(
   (t) => [index("endpoints_collection_idx").on(t.collectionId)],
 );
 
+/** A request kept for re-sending to the mock (the API client). `path` is appended to the API's mock URL. */
+export const savedRequests = pgTable(
+  "saved_requests",
+  {
+    id: id(),
+    collectionId: uuid("collection_id").notNull().references(() => collections.id),
+    name: text("name").notNull(),
+    folder: text("folder"), // optional grouping label
+    method: text("method").notNull().default("GET"),
+    path: text("path").notNull().default("/"), // may contain {{vars.x}} and the template helpers
+    headers: jsonb("headers").$type<Record<string, string>>().notNull().default({}),
+    body: text("body").notNull().default(""),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [index("saved_requests_collection_idx").on(t.collectionId)],
+);
+
 export const scenarios = pgTable(
   "scenarios",
   {
