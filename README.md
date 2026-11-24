@@ -26,6 +26,16 @@ On macOS there are helper scripts (Node 20+, e.g. `brew install node`):
 
 To share it with your team on the same network: create an admin account first (below), then `HOST=0.0.0.0 ./scripts/mac/start.sh` prints a URL like `http://192.168.1.25:3000`. The script refuses to listen on the network until an admin exists. Use `start.sh` (production) rather than `dev.sh` for this: Next's dev server blocks hot-reload requests from other addresses.
 
+On Windows, double-click a launcher in `scripts\windows\` (each opens its own terminal window):
+
+| Launcher | |
+|---|---|
+| `start-local.bat` | build and run, this PC only (`http://127.0.0.1:3000`) |
+| `start-team.bat` | same, but reachable by others on your network (needs an admin account; refuses otherwise) |
+| `dev.bat` | development mode with hot reload, this PC only |
+
+For `start-team.bat`, run `powershell -ExecutionPolicy Bypass -File scripts\windows\open-firewall.ps1` once as Administrator so Windows Firewall lets other computers in. Only one copy can run at a time (the embedded database allows one process); the launcher tells you if port 3000 is taken.
+
 If a script isn't executable after cloning: `chmod +x scripts/mac/*.sh`.
 
 For a production-style run: `npm run build && npm start`.
