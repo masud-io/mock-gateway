@@ -18,7 +18,15 @@ const collection = {
             { name: "Not found", code: 404, header: [], body: "nope" },
           ],
         },
-        { name: "Create order", request: { method: "POST", url: { path: ["orders"] } }, response: [] },
+        {
+          name: "Create order",
+          request: {
+            method: "POST", url: { path: ["orders"] },
+            header: [{ key: "X-Token", value: "{{token}}" }, { key: "Skip-Me", value: "x", disabled: true }, { key: "Content-Length", value: "9" }],
+            body: { mode: "raw", raw: '{"t":"{{token}}","n":1}' },
+          },
+          response: [],
+        },
       ],
     },
     { name: "By raw url", request: { method: "DELETE", url: "https://api.example.com/v1/orders/{{orderId}}/items" } },
@@ -65,6 +73,20 @@ describe("postman import", () => {
   it("a request without examples answers {} and the user is told", () => {
     expect(file.endpoints[1].rules).toEqual([expect.objectContaining({ isDefault: true, status: 200, body: "{}" })]);
     expect(warnings.join("\n")).toContain('"Create order" has no saved example response');
+  });
+
+  it("also keeps every request as a saved request, ready to send, with Postman variables as {{vars.x}}", () => {
+    expect(file.requests.map((r: any) => `${r.folder ?? "-"} | ${r.method} ${r.path}`)).toEqual([
+      "Orders | GET /orders/:id",
+      "Orders | POST /orders",
+      "- | DELETE /v1/orders/{{vars.orderId}}/items", // a {{var}} stays a variable here, unlike the endpoint's :orderId
+      "- | GET /orders/:id", // the duplicate endpoint was skipped, but the request itself is still kept
+    ]);
+    const create = file.requests[1];
+    expect(create.name).toBe("Create order");
+    expect(create.headers).toEqual({ "X-Token": "{{vars.token}}" }); // disabled and Content-Length headers dropped
+    expect(create.body).toBe('{"t":"{{vars.token}}","n":1}');
+    expect(file.requests[0]).toMatchObject({ headers: {}, body: "" });
   });
 
   it("an empty collection yields no endpoints and a warning, not a crash", () => {

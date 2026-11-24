@@ -249,6 +249,7 @@ describe("admin API", () => {
       name: "declined", scenarioId, status: 402, body: '{"error":"declined"}', priority: 5, faultType: "malformed", faultRate: 40,
       conditions: [{ source: "body", expr: "$.amount", op: "not_equals", value: "1" }],
     })).status).toBe(201);
+    await api("POST", `/collections/${col.id}/requests`, { name: "Ping it", folder: "Smoke", method: "POST", path: "/ping", headers: { "x-a": "1" }, body: '{"hi":"{{vars.greeting}}"}' });
     await api("PUT", "/variables", { scope: "collection", scopeId: col.id, key: "greeting", value: "hello" });
     await api("PUT", "/variables", { scope: "collection", scopeId: col.id, key: "token", value: "s3cret", isSecret: true });
 
@@ -271,6 +272,14 @@ describe("admin API", () => {
     const back = (await api("GET", `/collections/${imp.data.id}/export`)).data;
     expect(back.endpoints[0].rules).toEqual(exp.data.endpoints[0].rules); // round trip is lossless
     expect(back.endpoints[0].rules.find((r: any) => r.scenario)).toMatchObject({ faultType: "malformed", faultRate: 40 });
+    // Saved requests travel too, and can be sent from the imported API
+    const savedRequest = { name: "Ping it", folder: "Smoke", method: "POST", path: "/ping", headers: { "x-a": "1" }, body: '{"hi":"{{vars.greeting}}"}' };
+    expect(exp.data.requests).toEqual([savedRequest]);
+    expect(back.requests).toEqual([savedRequest]);
+    expect((await api("GET", `/collections/${imp.data.id}/requests`)).data).toEqual([expect.objectContaining(savedRequest)]);
+    const viaImport = await api("POST", `/collections/${imp.data.id}/send`, { method: "POST", path: "/ping", body: savedRequest.body });
+    expect(viaImport.data.status).toBe(202);
+    expect(JSON.parse(viaImport.data.body)).toEqual({ pong: "hello" }); // the greeting variable was imported as well
     expect(back.endpoints[0].rules.find((r: any) => r.scenario)?.conditions).toEqual([{ source: "body", expr: "$.amount", op: "not_equals", value: "1" }]);
     expect((await callMock("acme-corp/checkout/transfer-me/ping", { method: "POST", body: "{}", headers: { "content-type": "application/json" } })).status).toBe(202);
 

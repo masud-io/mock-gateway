@@ -4,7 +4,7 @@ import { getDb, schema } from "../../db";
 import { checkTemplate } from "../../core/template";
 import { isPostmanCollection, postmanToExport } from "../../core/postman";
 
-const { collections, endpoints, scenarios, responseRules, variables, authSchemes } = schema;
+const { collections, endpoints, scenarios, responseRules, variables, authSchemes, savedRequests } = schema;
 
 /** Export / import of one API (collection): its endpoints, rules, conditions, scenario names and plain variables.
  *  Credentials, auth schemes and secret variables are never written to the file; the counts are recorded so the user knows. */
@@ -64,6 +64,14 @@ export const exportFileSchema = z.object({
   }),
   variables: z.array(z.object({ key: z.string().min(1), value: z.string() })).default([]),
   endpoints: z.array(endpointSchema).default([]),
+  requests: z.array(z.object({
+    name: z.string().min(1).max(120),
+    folder: z.string().max(120).nullable().default(null),
+    method: z.enum(["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"]).default("GET"),
+    path: z.string().max(2000).default("/"),
+    headers: stringMap.default({}),
+    body: z.string().max(1_000_000).default(""),
+  })).default([]),
   excluded: z.object({ authSchemes: z.number().default(0), secretVariables: z.number().default(0) }).default({ authSchemes: 0, secretVariables: 0 }),
 });
 
@@ -89,6 +97,7 @@ export async function exportCollection(collectionId: string): Promise<ExportFile
   const scenarioName = new Map(scenarioRows.map((s) => [s.id, s.name]));
   const vars = await db.select().from(variables).where(and(eq(variables.scope, "collection"), eq(variables.scopeId, col.id)));
   const schemes = await db.select().from(authSchemes).where(eq(authSchemes.collectionId, col.id));
+  const saved = await db.select().from(savedRequests).where(eq(savedRequests.collectionId, col.id)).orderBy(savedRequests.folder, savedRequests.name);
 
   return {
     format: FORMAT,
@@ -108,6 +117,7 @@ export async function exportCollection(collectionId: string): Promise<ExportFile
         faultType: (["error", "malformed", "timeout"] as const).find((t) => t === r.faultType) ?? null, faultRate: r.faultRate,
       })),
     })),
+    requests: saved.map((r) => ({ name: r.name, folder: r.folder, method: r.method as ExportFile["requests"][number]["method"], path: r.path, headers: r.headers, body: r.body })),
     excluded: { authSchemes: schemes.length, secretVariables: vars.filter((v) => v.isSecret).length },
   };
 }
@@ -172,6 +182,8 @@ export async function importCollection(projectId: string, raw: unknown): Promise
     }
 
     for (const v of data.variables) await tx.insert(variables).values({ scope: "collection", scopeId: col.id, key: v.key, value: v.value, isSecret: false });
+
+    if (data.requests.length) await tx.insert(savedRequests).values(data.requests.map((r) => ({ ...r, collectionId: col.id })));
 
     for (const ep of data.endpoints) {
       const [e] = await tx.insert(endpoints).values({

@@ -93,6 +93,10 @@ Rule order: scenario-specific rules first, then the rest by priority; the **defa
 
 **Simulated failures:** a rule can answer with a server error (500), a body cut in half, or a 60 s timeout, in a chosen percentage of calls. The request log's Rule column and explanation show when one fired.
 
+**Requests (a small API client):** *Requests* on an API's page keeps the requests you test with, grouped by folder, and sends them to that API's mock in one click (Ctrl+Enter), showing the answer, its headers and what was actually sent. `{{vars.name}}` in the path, headers or body is filled from variables (the API's, then the project's, then the client's), and the template helpers work too (`{{randomDigits 12}}`, `{{uuid}}`, `{{now}}`). *Save as request* in Try it keeps the request you just tried. Requests are sent from the server straight into the mock, so they can only ever reach the mock: nothing here calls other hosts. Every send is in the request log like any other call. Saved requests are included in an API's export, and a Postman import creates them too (its `{{var}}` becomes `{{vars.var}}`).
+
+**Updating an existing install:** new releases can add tables. `start.sh`, `dev.sh` and `start.ps1` apply migrations on every start; if you start the app another way, run `npm run db:migrate` once (stop the app first: the embedded database allows one process).
+
 **Moving APIs around:** *Export* on an API's page downloads a `.mockgw.json` file (endpoints, rules, conditions, scenario names, plain variables; never credentials or secret variables). *Import an API from a file* on a project page adds it as a new API, never overwriting. The same box accepts a **Postman collection (v2.1)**: each request becomes an endpoint and its saved example responses become rules (the first is the default, the others wait for a condition you set). Authorization, scripts and variables from Postman are not imported.
 
 ## Working in the UI

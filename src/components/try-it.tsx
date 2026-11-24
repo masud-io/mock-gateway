@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useMutate } from "./providers";
 import { Badge, Button, Card, Field, Input, Select, StatusBadge, Textarea, useOrigin } from "./ui";
 
 interface Result { status: number; ms: number; headers: [string, string][]; body: string; error?: string }
@@ -17,6 +18,7 @@ function loadHeaders(collectionId: string): string {
 /** Calls the real mock URL from the browser, so what you see is exactly what your app would get. */
 export function TryIt({ collectionId, mockBase, method, path, soap }: { collectionId: string; mockBase: string; method: string; path: string; soap?: { operation: string; soapAction: string } }) {
   const origin = useOrigin();
+  const mutate = useMutate();
   const [m, setM] = useState(soap ? "POST" : method === "*" ? "GET" : method);
   // Fill `:id` style params with a sample value so the URL is callable straight away
   const [p, setP] = useState(soap ? (path === "/" ? "" : path) : path.replace(/:[A-Za-z_]\w*/g, "1").replace(/\*/g, "example"));
@@ -70,6 +72,14 @@ export function TryIt({ collectionId, mockBase, method, path, soap }: { collecti
               <Field label="Path" className="min-w-60 flex-1" hint={<span className="break-all">{origin}{mockBase}{p}</span>}><Input value={p} onChange={(e) => setP(e.target.value)} className="font-mono" /></Field>
             </>
           )}
+          <Button title="Keep this request on the API's Requests page" onClick={() => {
+            const hs: Record<string, string> = {};
+            for (const line of headers.split("\n")) {
+              const i = line.indexOf(":");
+              if (i > 0 && line.slice(0, i).trim()) hs[line.slice(0, i).trim()] = line.slice(i + 1).trim();
+            }
+            return mutate("POST", `/collections/${collectionId}/requests`, { name: soap ? soap.operation || "SOAP request" : `${m} ${p || "/"}`, method: m, path: p, headers: hs, body: ["GET", "HEAD"].includes(m) ? "" : body }, { ok: "Saved to Requests" });
+          }}>Save as request</Button>
           <Button variant="primary" onClick={send} disabled={busy}>{busy ? "Sending…" : "Send"}</Button>
         </div>
         <div className="grid gap-3 sm:grid-cols-2">

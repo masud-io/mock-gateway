@@ -10,7 +10,7 @@ export function isPostmanCollection(raw: unknown): boolean {
 }
 
 /** "/orders/:id" from a Postman url (object with path[], or a raw string). {{var}} segments become :var. */
-function pathOf(url: unknown): string {
+function pathOf(url: unknown, asEndpoint = true): string {
   let segments: string[];
   if (isObj(url) && Array.isArray(url.path)) {
     segments = url.path.map((s) => (isObj(s) ? str(s.value) : str(s)));
@@ -19,7 +19,8 @@ function pathOf(url: unknown): string {
     const noHost = raw.replace(/^[a-z][a-z0-9+.-]*:\/\/[^/]+/i, "").replace(/^\{\{[^}]+\}\}/, "");
     segments = noHost.split("?")[0].split("/");
   }
-  const cleaned = segments.map((s) => s.replace(/\{\{\s*([A-Za-z_]\w*)\s*\}\}/g, ":$1")).filter((s) => s !== "");
+  // An endpoint path turns {{var}} into a :param; a saved request keeps it as a variable ({{vars.var}}) to be filled in when sent
+  const cleaned = segments.map((s) => s.replace(/\{\{\s*([A-Za-z_]\w*)\s*\}\}/g, asEndpoint ? ":$1" : "{{vars.$1}}")).filter((s) => s !== "");
   return "/" + cleaned.join("/");
 }
 
@@ -47,24 +48,35 @@ export function postmanToExport(raw: unknown): PostmanResult {
 
   type Req = { name: string; method: string; path: string; examples: Json[] };
   const requests: Req[] = [];
-  const walk = (items: unknown[]) => {
+  // The same requests, kept as saved requests ready to send: Postman's {{var}} becomes {{vars.var}}
+  const saved: { name: string; folder: string | null; method: string; path: string; headers: Record<string, string>; body: string }[] = [];
+  const SAVED_METHODS = new Set(["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"]);
+  const asVars = (s: string) => s.replace(/\{\{\s*([A-Za-z_]\w*)\s*\}\}/g, "{{vars.$1}}");
+  const walk = (items: unknown[], folder: string | null) => {
     for (const it of items) {
       if (!isObj(it)) continue;
       if (Array.isArray(it.item)) {
-        walk(it.item);
+        walk(it.item, str(it.name).trim() || folder);
         continue;
       }
       const r = it.request;
       if (!isObj(r)) continue;
-      requests.push({
-        name: str(it.name).trim() || "Request",
-        method: (str(r.method) || "GET").toUpperCase(),
-        path: pathOf(r.url),
-        examples: Array.isArray(it.response) ? it.response.filter(isObj) : [],
-      });
+      const method = (str(r.method) || "GET").toUpperCase();
+      const name = str(it.name).trim() || "Request";
+      requests.push({ name, method, path: pathOf(r.url), examples: Array.isArray(it.response) ? it.response.filter(isObj) : [] });
+      if (SAVED_METHODS.has(method)) {
+        const headers: Record<string, string> = {};
+        if (Array.isArray(r.header)) {
+          for (const h of r.header) {
+            if (isObj(h) && h.disabled !== true && str(h.key) && !/^content-length$/i.test(str(h.key))) headers[str(h.key)] = asVars(str(h.value));
+          }
+        }
+        const rawBody = isObj(r.body) && r.body.mode === "raw" ? str(r.body.raw) : "";
+        saved.push({ name, folder, method, path: pathOf(r.url, false), headers, body: asVars(rawBody) });
+      }
     }
   };
-  walk(raw && Array.isArray(root.item) ? root.item : []);
+  walk(raw && Array.isArray(root.item) ? root.item : [], null);
 
   const seen = new Set<string>();
   const endpoints = [];
@@ -102,13 +114,13 @@ export function postmanToExport(raw: unknown): PostmanResult {
     endpoints.push({ name: rq.name, method: rq.method, path: rq.path, soapAction: null, operation: null, requestSchema: null, matchers: [], enabled: true, rules });
   }
   if (!endpoints.length) warnings.push("No requests were found in this Postman collection.");
-  warnings.push("Imported from Postman: requests, paths, methods and saved examples. Authorization, scripts, variables and tests are not imported.");
+  warnings.push("Imported from Postman: requests (also under Requests, ready to send), paths, methods and saved examples. Postman {{variables}} became {{vars.name}}: define them as variables. Authorization, scripts, variable values and tests are not imported.");
 
   return {
     file: {
       format: "mock-gateway/collection", version: 1,
       collection: { name, slug: name, protocol: "rest" },
-      variables: [], endpoints, excluded: { authSchemes: 0, secretVariables: 0 },
+      variables: [], endpoints, requests: saved, excluded: { authSchemes: 0, secretVariables: 0 },
     },
     warnings,
   };
