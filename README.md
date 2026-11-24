@@ -72,9 +72,10 @@ Review and edit everything before saving; the review page lists exactly what was
 
 ## SOAP
 
-Add an API with protocol **SOAP**. A SOAP API has one URL (`/mock/{client}/{project}/{collection}`); each *operation* is an endpoint.
+Add an API with protocol **SOAP**. A SOAP API has one base URL (`/mock/{client}/{project}/{collection}`); each *operation* is an endpoint. If the provider exposes a separate path per operation (`…/getToken`), set the endpoint's optional **Path**: it is used for the URL you copy and in Try it, but requests are matched by operation only, so any path under the base reaches the mock.
 
 - **Import a WSDL** (1.1) on the API's page: every operation becomes an endpoint with a sample response generated from its schema. `GET …?wsdl` serves it back with the service address pointing at the mock, so SDKs can load it.
+- **From a sample** accepts the request as a full envelope or as just the XML inside the Body (it gets a default SOAP 1.1 envelope); paste a full 1.2 envelope for 1.2. Several responses for one operation (approved, declined, invalid key) are response rules with conditions on the request, e.g. body `$.Operation.KeyID` *does not equal* the valid key. A non-default rule with no conditions answers everything, and the rule card warns about it.
 - **Dispatch** is by the first element inside the SOAP Body. SOAPAction is stored as documented; a different value from the client is noted in the request log, not rejected. SOAP 1.1 and 1.2 are both answered in the caller's version.
 - **Responses**: the rule body is the XML *inside* the Body (the envelope is added). Echo request values with `{{xml request.body.Operation.Field}}`. For a Fault use status 500 and `{{soapFault "Client" "Insufficient balance"}}`. Switch Faults on by scenario or by a body condition (`$.Operation.Field`).
 - **Not supported yet**: XSD validation of requests (only well-formed XML, a valid envelope and a known operation are checked), WS-Security, attachments (MTOM), WSDL 2.0, schemas split across imported files.
