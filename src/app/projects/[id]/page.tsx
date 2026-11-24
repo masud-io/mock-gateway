@@ -95,7 +95,7 @@ export default function ProjectPage() {
         </form>
         <div className="mt-2"><ErrorText>{formError}</ErrorText></div>
         <div className="mt-4 border-t border-zinc-200 pt-3 dark:border-zinc-800">
-          <Field label="Import an API from a file" hint="A .mockgw.json file from another project or machine. It is added as a new API; nothing existing is changed.">
+          <Field label="Import an API from a file" hint="A .mockgw.json file from another project or machine, or a Postman collection (v2.1). It is added as a new API; nothing existing is changed.">
             <input type="file" accept=".json,application/json" className="block text-sm file:mr-3 file:rounded-md file:border file:border-zinc-300 file:bg-white file:px-3 file:py-1.5 file:text-sm dark:file:border-zinc-700 dark:file:bg-zinc-900"
               onChange={async (e) => {
                 const input = e.target;

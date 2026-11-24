@@ -2,6 +2,7 @@ import { and, eq, isNull, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { getDb, schema } from "../../db";
 import { checkTemplate } from "../../core/template";
+import { isPostmanCollection, postmanToExport } from "../../core/postman";
 
 const { collections, endpoints, scenarios, responseRules, variables, authSchemes } = schema;
 
@@ -115,6 +116,13 @@ const slugify = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").repla
 
 /** Creates a new collection in the project from an export file. Never overwrites: a taken slug or name gets a numeric suffix. */
 export async function importCollection(projectId: string, raw: unknown): Promise<{ id: string; slug: string; name: string; endpoints: number; rules: number; warnings: string[] }> {
+  // A Postman collection is converted to the export format first; everything after is the same validated path
+  let converted: string[] = [];
+  if (isPostmanCollection(raw)) {
+    const p = postmanToExport(raw);
+    raw = p.file;
+    converted = p.warnings;
+  }
   const parsed = exportFileSchema.safeParse(raw);
   if (!parsed.success) {
     const first = parsed.error.issues[0];
@@ -134,7 +142,7 @@ export async function importCollection(projectId: string, raw: unknown): Promise
   }
 
   const db = getDb();
-  const warnings: string[] = [];
+  const warnings: string[] = [...converted];
   const taken = await db.select({ slug: collections.slug, name: collections.name }).from(collections).where(and(eq(collections.projectId, projectId), isNull(collections.deletedAt)));
   const slugs = new Set(taken.map((c) => c.slug));
   const names = new Set(taken.map((c) => c.name));

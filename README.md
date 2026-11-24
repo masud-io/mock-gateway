@@ -89,7 +89,11 @@ Bodies are Handlebars templates (not HTML-escaped):
 `{{json value}}` (valid JSON, quotes escaped) `{{sum request.body.items "price"}}`
 `{{#repeat 3}}…{{@index}}…{{/repeat}}`
 
-Rule order: scenario-specific rules first, then the rest by priority; the **default** rule answers when no other rule's conditions match.
+Rule order: scenario-specific rules first, then the rest by priority; the **default** rule answers when no other rule's conditions match. Conditions are *equals*, *does not equal*, *contains*, *matches regex*, *exists* and *does not exist*. **Duplicate** copies a rule (a copy of the default gets a placeholder condition so it can't take over until you edit it).
+
+**Simulated failures:** a rule can answer with a server error (500), a body cut in half, or a 60 s timeout, in a chosen percentage of calls. The request log's Rule column and explanation show when one fired.
+
+**Moving APIs around:** *Export* on an API's page downloads a `.mockgw.json` file (endpoints, rules, conditions, scenario names, plain variables; never credentials or secret variables). *Import an API from a file* on a project page adds it as a new API, never overwriting. The same box accepts a **Postman collection (v2.1)**: each request becomes an endpoint and its saved example responses become rules (the first is the default, the others wait for a condition you set). Authorization, scripts and variables from Postman are not imported.
 
 ## Working in the UI
 

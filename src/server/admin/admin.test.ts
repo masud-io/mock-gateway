@@ -118,6 +118,24 @@ describe("admin API", () => {
     expect((await api("POST", `/rules/${crypto.randomUUID()}/duplicate`)).status).toBe(404);
   });
 
+  it("imports a Postman collection: requests become endpoints, examples become rules", async () => {
+    const pm = {
+      info: { name: "Shipping", schema: "https://schema.getpostman.com/json/collection/v2.1.0/collection.json" },
+      item: [{
+        name: "Track", request: { method: "GET", url: { path: ["track", ":code"] } },
+        response: [{ name: "ok", code: 200, header: [{ key: "Content-Type", value: "application/json" }], body: '{"code":"{{request.params.code}}","raw":"{{postmanVar}}"}' }],
+      }],
+    };
+    const imp = await api("POST", `/projects/${projectId}/import`, pm);
+    expect(imp.status).toBe(201);
+    expect(imp.data).toMatchObject({ name: "Shipping", slug: "shipping", endpoints: 1, rules: 1 });
+    expect(imp.data.warnings.join(" ")).toContain("Imported from Postman");
+    // The example is returned as saved: {{ }} inside it is literal text, not a template
+    const res = await callMock("acme-corp/checkout/shipping/track/ABC");
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ code: "{{request.params.code}}", raw: "{{postmanVar}}" });
+  });
+
   it("a rule's simulated failure is validated, saved and live", async () => {
     const def = (await api("GET", `/endpoints/${endpointId}`)).data.rules.find((r: any) => r.isDefault);
     expect((await api("PATCH", `/rules/${def.id}`, { faultType: "explode", faultRate: 50 })).status).toBe(400);
