@@ -43,8 +43,11 @@ function readValues(m: Matcher, { req, params }: MatchContext): string[] {
 export function testMatcher(m: Matcher, ctx: MatchContext): boolean {
   const values = readValues(m, ctx);
   if (m.op === "exists") return values.length > 0;
-  if (values.length === 0) return false;
+  if (m.op === "not_exists") return values.length === 0;
   const expected = m.value ?? "";
+  // A missing field is "not equal" to anything
+  if (m.op === "not_equals") return !values.some((v) => v === expected);
+  if (values.length === 0) return false;
   switch (m.op) {
     case "equals":
       return values.some((v) => v === expected);
@@ -63,7 +66,8 @@ export function testMatcher(m: Matcher, ctx: MatchContext): boolean {
 }
 
 export function describeMatcher(m: Matcher): string {
-  return m.op === "exists" ? `${m.source} ${m.expr} exists` : `${m.source} ${m.expr} ${m.op} "${m.value ?? ""}"`;
+  if (m.op === "exists" || m.op === "not_exists") return `${m.source} ${m.expr} ${m.op === "exists" ? "exists" : "does not exist"}`;
+  return `${m.source} ${m.expr} ${m.op.replace("_", " ")} "${m.value ?? ""}"`;
 }
 
 /** Every matcher must pass. Returns the first failing one for diagnostics. */

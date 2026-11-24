@@ -10,7 +10,7 @@ export type Matcher = {
   source: "header" | "query" | "body" | "path";
   /** header/query/path-param name, or a JSONPath expression for `body` */
   expr: string;
-  op: "equals" | "contains" | "regex" | "exists";
+  op: "equals" | "not_equals" | "contains" | "regex" | "exists" | "not_exists";
   value?: string;
 };
 

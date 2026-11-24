@@ -74,7 +74,7 @@ const mockBase = (client: string, project: string, collection?: string) =>
 const matcher = z.object({
   source: z.enum(["header", "query", "body", "path"]),
   expr: z.string().min(1),
-  op: z.enum(["equals", "contains", "regex", "exists"]),
+  op: z.enum(["equals", "not_equals", "contains", "regex", "exists", "not_exists"]),
   value: z.string().optional(),
 });
 const stringMap = z.record(z.string(), z.string());

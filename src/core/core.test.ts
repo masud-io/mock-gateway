@@ -77,6 +77,15 @@ describe("matchers", () => {
     expect(testMatcher({ source: "body", expr: "$[?(", op: "exists" }, ctx)).toBe(false);
     expect(testMatcher({ source: "body", expr: "$.x", op: "exists" }, { req: req(), params: {} })).toBe(false);
   });
+  it("not_equals / not_exists treat a missing field as a match", () => {
+    expect(testMatcher({ source: "path", expr: "id", op: "not_equals", value: "42" }, ctx)).toBe(false);
+    expect(testMatcher({ source: "path", expr: "id", op: "not_equals", value: "43" }, ctx)).toBe(true);
+    expect(testMatcher({ source: "query", expr: "tag", op: "not_equals", value: "b" }, ctx)).toBe(false); // one of the values equals it
+    expect(testMatcher({ source: "body", expr: "$.user.key", op: "not_equals", value: "x" }, ctx)).toBe(true); // missing
+    expect(testMatcher({ source: "header", expr: "x-none", op: "not_exists" }, ctx)).toBe(true);
+    expect(testMatcher({ source: "header", expr: "x-tenant", op: "not_exists" }, ctx)).toBe(false);
+    expect(testMatcher({ source: "body", expr: "$.x", op: "not_equals", value: "1" }, { req: req(), params: {} })).toBe(true);
+  });
   it("testAll reports the first failing matcher", () => {
     const res = testAll(
       [

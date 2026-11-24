@@ -7,7 +7,7 @@ type J<T> = T extends Date ? string : T extends (infer U)[] ? J<U>[] : T extends
 export type Rule = J<typeof S.responseRules.$inferSelect>;
 export type Scenario = J<typeof S.scenarios.$inferSelect>;
 export type Variable = J<typeof S.variables.$inferSelect>;
-export type Matcher = { source: "header" | "query" | "body" | "path"; expr: string; op: "equals" | "contains" | "regex" | "exists"; value?: string };
+export type Matcher = { source: "header" | "query" | "body" | "path"; expr: string; op: "equals" | "not_equals" | "contains" | "regex" | "exists" | "not_exists"; value?: string };
 export type ErrorTemplate = { status: number; contentType: string; body: string };
 
 export interface TreeEndpoint { id: string; name: string; method: string; path: string; operation?: string | null; soapAction?: string | null; enabled: boolean }
