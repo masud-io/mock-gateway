@@ -60,7 +60,7 @@ export function TryIt({ collectionId, mockBase, method, path, soap }: { collecti
 
   return (
     <Card title="Try it" actions={<Badge>sends a real request to the mock</Badge>}>
-      <div className="grid gap-3">
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-3">
         <div className="flex flex-wrap items-end gap-2">
           {soap ? (
             <p className="min-w-60 flex-1 break-all pb-2 font-mono text-xs text-zinc-500">POST {origin}{mockBase}</p>

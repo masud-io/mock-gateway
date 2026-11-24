@@ -38,8 +38,8 @@ export default function EndpointPage() {
             <Button small variant="danger" onClick={async () => { if (!confirm(`Delete endpoint "${endpoint.name}"?`)) return; const r = await mutate("DELETE", `/endpoints/${id}`, undefined, { ok: "Endpoint deleted" }); if (!r.error) router.push(`/collections/${collection.id}`); }}>Delete</Button>
           </div>
         </div>
-        <MockUrl path={soap ? data.mockBase : `${data.mockBase}${endpoint.path}`} />
-        {soap && <p className="text-xs text-zinc-500">POST a SOAP envelope to this one URL. The first element inside the Body (<code>{endpoint.operation}</code>) selects this endpoint.</p>}
+        <MockUrl path={soap && endpoint.path === "/" ? data.mockBase : `${data.mockBase}${endpoint.path}`} />
+        {soap && <p className="text-xs text-zinc-500">POST a SOAP envelope to this URL. The first element inside the Body (<code>{endpoint.operation}</code>) selects this endpoint; the path is not checked.</p>}
       </header>
 
       <RequestSection key={endpoint.updatedAt} data={data} />
@@ -77,8 +77,8 @@ function RequestSection({ data }: { data: EndpointDetail }) {
   const [matchers, setMatchers] = useState<Matcher[]>(endpoint.matchers as Matcher[]);
   const [schema, setSchema] = useState<unknown>(endpoint.requestSchema ?? null);
   const [error, setError] = useState<string>();
-  const current = soap ? { name: name.trim(), operation: operation.trim(), soapAction: soapAction.trim() || null, enabled, matchers } : { name: name.trim(), method, path, enabled, matchers, requestSchema: schema };
-  const stored = soap ? { name: endpoint.name, operation: (endpoint.operation ?? "").trim(), soapAction: endpoint.soapAction?.trim() || null, enabled: endpoint.enabled, matchers: endpoint.matchers } : { name: endpoint.name, method: endpoint.method, path: endpoint.path, enabled: endpoint.enabled, matchers: endpoint.matchers, requestSchema: endpoint.requestSchema ?? null };
+  const current = soap ? { name: name.trim(), path: path.trim() || "/", operation: operation.trim(), soapAction: soapAction.trim() || null, enabled, matchers } : { name: name.trim(), method, path, enabled, matchers, requestSchema: schema };
+  const stored = soap ? { name: endpoint.name, path: endpoint.path, operation: (endpoint.operation ?? "").trim(), soapAction: endpoint.soapAction?.trim() || null, enabled: endpoint.enabled, matchers: endpoint.matchers } : { name: endpoint.name, method: endpoint.method, path: endpoint.path, enabled: endpoint.enabled, matchers: endpoint.matchers, requestSchema: endpoint.requestSchema ?? null };
   const dirty = JSON.stringify(current) !== JSON.stringify(stored);
   useUnsavedGuard(dirty);
   const save = async () => { const r = await mutate("PATCH", `/endpoints/${endpoint.id}`, current, { ok: "Endpoint saved — live now", silentError: true }); setError(r.error); };
@@ -87,8 +87,9 @@ function RequestSection({ data }: { data: EndpointDetail }) {
     <div onKeyDown={(e) => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") { e.preventDefault(); if (dirty) void save(); } }}>
     <Card title={<>Request {dirty && <Badge tone="amber">unsaved</Badge>}</>}>
       {soap ? (
-        <div className="grid gap-3 sm:grid-cols-[1fr_1fr_1fr]">
+        <div className="grid items-start gap-3 sm:grid-cols-2">
           <Field label="Name"><Input value={name} onChange={(e) => setName(e.target.value)} /></Field>
+          <Field label="Path" hint="The provider's own path, e.g. /getToken. Only used for the URL you copy: requests are matched by operation."><Input value={path} onChange={(e) => setPath(e.target.value)} placeholder="/getToken" className="font-mono" /></Field>
           <Field label="Operation" hint="First element inside the SOAP Body"><Input value={operation} onChange={(e) => setOperation(e.target.value)} className="font-mono" /></Field>
           <Field label="SOAPAction" hint="Recorded as documented; a different value from the client is noted in the log, not rejected."><Input value={soapAction} onChange={(e) => setSoapAction(e.target.value)} className="font-mono" /></Field>
         </div>

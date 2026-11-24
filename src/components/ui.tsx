@@ -15,7 +15,7 @@ export function Select({ className, ...p }: SelectHTMLAttributes<HTMLSelectEleme
   return <select {...p} className={cx(field, className)} />;
 }
 export function Textarea({ className, ...p }: TextareaHTMLAttributes<HTMLTextAreaElement>) {
-  return <textarea spellCheck={false} {...p} className={cx(field, "font-mono text-[13px] leading-5", className)} />;
+  return <textarea spellCheck={false} {...p} className={cx(field, "resize-y font-mono text-[13px] leading-5", className)} />;
 }
 
 const variants = {

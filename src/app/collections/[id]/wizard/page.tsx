@@ -85,7 +85,7 @@ function PasteStep({ collectionId, soap, onDone }: { collectionId: string; soap:
         ) : (
           soap ? (
             <div className="space-y-3">
-              <Field label="SOAP request envelope" hint="The first element inside the Body names the operation."><Textarea rows={8} value={reqBody} onChange={(e) => setReqBody(e.target.value)} placeholder="<soapenv:Envelope …>…</soapenv:Envelope>" /></Field>
+              <Field label="SOAP request" hint="Paste the full envelope, or just the XML that goes inside the Body (it gets a default envelope). The first element names the operation."><Textarea rows={8} value={reqBody} onChange={(e) => setReqBody(e.target.value)} placeholder="<GetOrderRequest>…</GetOrderRequest>" /></Field>
               <Field label="SOAPAction (optional)" hint="From the documentation or the SOAPAction header."><Input value={soapAction} onChange={(e) => setSoapAction(e.target.value)} placeholder="urn:orders/GetOrder" className="font-mono" /></Field>
             </div>
           ) : (
@@ -149,7 +149,7 @@ function ReviewStep({ collectionId, initial, sampleBody, onBack }: { collectionI
   const save = async () => {
     const r = await mutate<{ id: string }>(
       "POST", `/collections/${collectionId}/wizard/create`,
-      soap ? { name: name.trim(), method: "POST", path: "/", status, contentType, body, operation: operation.trim(), soapAction: soapAction.trim() || null } : { name: name.trim(), method, path, requestSchema: schema ?? null, status, contentType, body },
+      soap ? { name: name.trim(), method: "POST", path: path.trim() || "/", status, contentType, body, operation: operation.trim(), soapAction: soapAction.trim() || null } : { name: name.trim(), method, path, requestSchema: schema ?? null, status, contentType, body },
       { ok: "Endpoint created — live now", silentError: true },
     );
     setError(r.error);
@@ -166,9 +166,10 @@ function ReviewStep({ collectionId, initial, sampleBody, onBack }: { collectionI
 
       <Card title="Endpoint">
         {soap ? (
-          <div className="grid gap-3 sm:grid-cols-3">
+          <div className="grid items-start gap-3 sm:grid-cols-2">
             <Field label="Name"><Input value={name} onChange={(e) => setName(e.target.value)} /></Field>
             <Field label="Operation" hint={`SOAP ${initial.soapVersion ?? "1.1"}`}><Input value={operation} onChange={(e) => setOperation(e.target.value)} className="font-mono" /></Field>
+            <Field label="Path (optional)" hint="The provider's own path, e.g. /getToken. Only used for the URL you copy: requests are matched by operation."><Input value={path} onChange={(e) => setPath(e.target.value)} placeholder="/getToken" className="font-mono" /></Field>
             <Field label="SOAPAction"><Input value={soapAction} onChange={(e) => setSoapAction(e.target.value)} className="font-mono" /></Field>
           </div>
         ) : (

@@ -61,7 +61,7 @@ export default function CollectionPage() {
             ))}
           </ul>
         )}
-        <form className="flex flex-wrap items-end gap-2" onSubmit={async (e) => {
+        <form className="flex flex-wrap items-start gap-2" onSubmit={async (e) => {
           e.preventDefault();
           const r = await mutate<{ id: string }>("POST", "/endpoints", soap ? { collectionId: id, name: name.trim(), operation: operation.trim(), soapAction: soapAction.trim() } : { collectionId: id, name: name.trim(), method, path: path.trim() }, { ok: "Endpoint created", silentError: true });
           setFormError(r.error);
@@ -79,7 +79,7 @@ export default function CollectionPage() {
               <Field label="Path" className="min-w-52 flex-1" hint="Use :name for parameters, * for the rest of the path"><Input value={path} onChange={(e) => setPath(e.target.value)} placeholder="/orders/:id" className="font-mono" required /></Field>
             </>
           )}
-          <Button type="submit" variant="primary" disabled={!name.trim() || (soap && !operation.trim())}>Add endpoint</Button>
+          <Button type="submit" variant="primary" className="mt-5" disabled={!name.trim() || (soap && !operation.trim())}>Add endpoint</Button>
         </form>
         <div className="mt-2"><ErrorText>{formError}</ErrorText></div>
       </Card>

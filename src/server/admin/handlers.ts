@@ -4,7 +4,7 @@ import { getDb, schema } from "../../db";
 import { renderTemplate, checkTemplate, TemplateError, type TemplateContext } from "../../core/template";
 import { checkSchema } from "../../core/validate";
 import { buildTemplate, buildXmlTemplate, inferPath, inferSchema, parseCurl } from "../../core/infer";
-import { parseEnvelope, parseWsdl } from "../../core/soap";
+import { parseEnvelope, parseWsdl, wrapEnvelope } from "../../core/soap";
 import { encryptSecret, decryptSecret } from "../crypto";
 
 const {
@@ -560,6 +560,8 @@ export const routes: Route[] = [
           }
         }
         if (b.soapAction?.trim()) headers["soapaction"] = b.soapAction.trim();
+        // Provider docs usually show only the Body content: put it in a default envelope (a full envelope is kept as is)
+        if (raw.trim()) raw = wrapEnvelope("1.1", raw);
         const env = parseEnvelope(raw, headers);
         if ("error" in env) throw bad(env.error);
 
@@ -646,7 +648,7 @@ export const routes: Route[] = [
       assertTemplates({ "response body": b.body });
       const [ep] = await db().insert(endpoints).values(
         soap
-          ? { collectionId: collection.id, name: b.name, method: "POST", path: "/", operation: b.operation, soapAction: b.soapAction || null }
+          ? { collectionId: collection.id, name: b.name, method: "POST", path: b.path, operation: b.operation, soapAction: b.soapAction || null }
           : { collectionId: collection.id, name: b.name, method: b.method, path: b.path, requestSchema: b.requestSchema },
       ).returning();
       await db().insert(responseRules).values({
