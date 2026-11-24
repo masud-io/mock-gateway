@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
+import { FieldPicker } from "@/components/field-picker";
 import { RuleCard, type RulePosition } from "@/components/rule-card";
 import { useMutate, useUnsavedGuard } from "@/components/providers";
 import { TryIt } from "@/components/try-it";
@@ -103,6 +104,9 @@ function RequestSection({ data }: { data: EndpointDetail }) {
       <div className="mt-4 space-y-4">
         <Field label="Only match requests where ALL of these hold" hint={soap ? "Use this to give two endpoints the same operation but different behaviour (for example by a field in the Body)." : "Use this to give two endpoints the same method and path but different behaviour (for example by a header)."}>
           <MatcherEditor value={matchers} onChange={setMatchers} />
+          <div className="mt-2">
+            <FieldPicker protocol={soap ? "soap" : "rest"} storageKey={endpoint.id} onPick={(m) => setMatchers((x) => [...x, m])} />
+          </div>
         </Field>
         {!soap && (
           <Field label="Request body JSON Schema (optional)" hint="When the API's validation is strict, requests that don't fit are rejected with the collection's error response.">

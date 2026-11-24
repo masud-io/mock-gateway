@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { api, ApiError, type Matcher, type Rule, type Scenario } from "@/lib/api";
 import { CodeEditor } from "./code-editor";
+import { FieldPicker } from "./field-picker";
 import { useMutate, useUnsavedGuard } from "./providers";
 import { Badge, Button, ErrorText, Field, Input, KeyValueEditor, MatcherEditor, Select, StatusBadge, Textarea } from "./ui";
 
@@ -119,6 +120,9 @@ export function RuleCard({ rule, scenarios, sampleParams, soapOperation, positio
           {!d.isDefault && (
             <Field label="Use this rule when ALL of these match" hint="Rules are tried in priority order; the first whose conditions all match answers. The default rule answers when none do.">
               <MatcherEditor value={d.conditions} onChange={(v) => set("conditions", v)} />
+              <div className="mt-2">
+                <FieldPicker protocol={soapOperation !== undefined ? "soap" : "rest"} storageKey={rule.endpointId} onPick={(m) => setD((x) => ({ ...x, conditions: [...x.conditions, m] }))} />
+              </div>
               {d.conditions.length === 0 && !d.scenarioId && (
                 <span role="alert" className="mt-2 block rounded-md border border-amber-300 bg-amber-50 p-2 text-xs text-amber-900 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200">
                   With no conditions and no scenario this rule matches every request, so the rules after it and the default rule will never answer. Add a condition, pick a scenario, or tick “Default rule”.

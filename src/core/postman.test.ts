@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any -- converter output is asserted loosely on purpose */
 import { describe, expect, it } from "vitest";
 import { isPostmanCollection, postmanToExport } from "./postman";
 

@@ -136,6 +136,31 @@ describe("admin API", () => {
     expect(await res.json()).toEqual({ code: "{{request.params.code}}", raw: "{{postmanVar}}" });
   });
 
+  it("lists the fields of a pasted request, and a condition built from one makes the rule answer", async () => {
+    const r = await api("POST", "/request-fields", { protocol: "soap", text: "<PayRequest><KeyID>229129</KeyID><AccountNo>0001</AccountNo></PayRequest>" });
+    expect(r.status).toBe(200);
+    expect(r.data.summary).toBe("SOAP request: PayRequest");
+    const keyField = r.data.fields.find((f: any) => f.value === "229129");
+    expect(keyField).toEqual({ source: "body", expr: "$.PayRequest.KeyID", value: "229129" });
+
+    // Use that field as a condition on a SOAP endpoint and call the mock
+    const col = (await api("POST", "/collections", { projectId, name: "Picked", protocol: "soap" })).data;
+    const ep = (await api("POST", "/endpoints", { collectionId: col.id, name: "Pay", operation: "PayRequest" })).data;
+    await api("POST", `/endpoints/${ep.id}/rules`, {
+      name: "wrong key", status: 200, body: "<R>wrong</R>",
+      conditions: [{ source: keyField.source, expr: keyField.expr, op: "not_equals", value: keyField.value }],
+    });
+    const envelope = (key: string) =>
+      `<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/"><s:Body><PayRequest><KeyID>${key}</KeyID></PayRequest></s:Body></s:Envelope>`;
+    const post = async (key: string) =>
+      (await callMock("acme-corp/checkout/picked", { method: "POST", headers: { "content-type": "text/xml" }, body: envelope(key) })).text();
+    expect(await post("999")).toContain("<R>wrong</R>");
+    expect(await post("229129")).not.toContain("<R>wrong</R>");
+
+    expect((await api("POST", "/request-fields", { protocol: "soap", text: "<a><b></a>" })).status).toBe(400);
+    expect((await api("POST", "/request-fields", { protocol: "soap" })).status).toBe(400);
+  });
+
   it("a rule's simulated failure is validated, saved and live", async () => {
     const def = (await api("GET", `/endpoints/${endpointId}`)).data.rules.find((r: any) => r.isDefault);
     expect((await api("PATCH", `/rules/${def.id}`, { faultType: "explode", faultRate: 50 })).status).toBe(400);

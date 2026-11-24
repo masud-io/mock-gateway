@@ -3,6 +3,7 @@ import { z } from "zod";
 import { getDb, schema } from "../../db";
 import { renderTemplate, checkTemplate, TemplateError, type TemplateContext } from "../../core/template";
 import { checkSchema } from "../../core/validate";
+import { readRequestFields } from "../../core/fields";
 import type { Matcher } from "../../core/types";
 import { buildTemplate, buildXmlTemplate, inferPath, inferSchema, parseCurl } from "../../core/infer";
 import { parseEnvelope, parseWsdl, wrapEnvelope } from "../../core/soap";
@@ -772,6 +773,19 @@ export const routes: Route[] = [
     run: async ({ params }) => {
       await db().delete(responseRules).where(eq(responseRules.id, params.id));
       return { ok: true };
+    },
+  },
+
+  // ----- fields of a sample request, for building conditions -----
+  {
+    method: "POST", path: "/request-fields", readonly: true,
+    run: ({ body }) => {
+      const b = parse(z.object({ text: z.string().max(1_000_000), protocol: z.enum(["rest", "soap"]) }), body);
+      try {
+        return readRequestFields(b.text, b.protocol);
+      } catch (e) {
+        throw bad(e instanceof Error ? e.message : "Could not read that request");
+      }
     },
   },
 

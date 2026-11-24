@@ -168,7 +168,7 @@ export function MatcherEditor({ value, onChange }: { value: Matcher[]; onChange:
           <Select value={m.op} onChange={(e) => set(i, { op: e.target.value as Matcher["op"] })} className="w-36">
             <option value="equals">equals</option><option value="not_equals">does not equal</option><option value="contains">contains</option><option value="regex">matches regex</option><option value="exists">exists</option><option value="not_exists">does not exist</option>
           </Select>
-          {m.op !== "exists" && m.op !== "not_exists" &&<Input value={m.value ?? ""} placeholder="value" onChange={(e) => set(i, { value: e.target.value })} className="min-w-32 flex-1 font-mono" />}
+          {m.op !== "exists" && m.op !== "not_exists" && <Input value={m.value ?? ""} placeholder="value" onChange={(e) => set(i, { value: e.target.value })} className="min-w-32 flex-1 font-mono" />}
           <Button small variant="ghost" aria-label="Remove condition" onClick={() => onChange(value.filter((_, j) => j !== i))}>✕</Button>
         </div>
       ))}
