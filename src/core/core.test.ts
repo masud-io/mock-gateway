@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { createHmac } from "node:crypto";
 import { checkAuth } from "./auth";
 import { parseBody } from "./body";
-import { handle } from "./engine";
+import { handle, MAX_DELAY_MS } from "./engine";
 import { maskHeaders } from "./mask";
 import { testAll, testMatcher } from "./matchers";
 import { bySpecificity, compilePath, matchPath } from "./path";
@@ -253,9 +253,11 @@ const rule = (over: Partial<RuleConfig> = {}): RuleConfig => ({
   contentType: "application/json",
   body: '{"ok":true}',
   delayMs: 0,
+  faultType: null,
+  faultRate: null,
   ...over,
 });
-const endpoint = (over: Partial<EndpointConfig> = {}): EndpointConfig => ({
+const endpoint =(over: Partial<EndpointConfig> = {}): EndpointConfig => ({
   id: "e1",
   name: "ep",
   method: "GET",
@@ -301,6 +303,43 @@ describe("engine", () => {
     expect(res.headers["content-type"]).toBe("application/json");
     expect(res.log.matched).toBe(true);
     expect(res.log.explanation).toContain("default rule");
+  });
+
+  describe("simulated faults", () => {
+    const run = (r: Partial<RuleConfig>, random: number) =>
+      handle({
+        req: req({ path: "/orders/1" }),
+        collection: collection({ endpoints: [endpoint({ rules: [rule({ body: '{"ok":true,"pad":"0123456789"}', ...r })] })] }),
+        project: project(),
+        random: () => random,
+      });
+    it("error: a 500 replaces the answer, in the rate's share of calls only", () => {
+      const hit = run({ faultType: "error", faultRate: 30 }, 0.29);
+      expect(hit.status).toBe(500);
+      expect(JSON.parse(hit.body)).toEqual({ error: "Simulated server error" });
+      expect(hit.headers["content-type"]).toBe("application/json");
+      expect(hit.log.explanation).toContain('simulated fault "error" (30% of calls)');
+      const miss = run({ faultType: "error", faultRate: 30 }, 0.3);
+      expect(miss.status).toBe(200);
+      expect(JSON.parse(miss.body)).toMatchObject({ ok: true });
+      expect(miss.log.explanation).toContain("not triggered");
+    });
+    it("no rate means every call; no type means never", () => {
+      expect(run({ faultType: "error", faultRate: null }, 0.999).status).toBe(500);
+      expect(run({ faultType: null, faultRate: 100 }, 0).status).toBe(200);
+    });
+    it("malformed cuts the body in half and keeps the status", () => {
+      const full = run({}, 0).body;
+      const cut = run({ faultType: "malformed", faultRate: 100 }, 0);
+      expect(cut.status).toBe(200);
+      expect(cut.body).toBe(full.slice(0, Math.floor(full.length / 2)));
+      expect(() => JSON.parse(cut.body)).toThrow();
+    });
+    it("timeout holds the answer for the maximum delay", () => {
+      expect(run({ faultType: "timeout", faultRate: 100 }, 0).delayMs).toBe(MAX_DELAY_MS);
+      expect(run({ faultType: "timeout", faultRate: 100 }, 0.5).delayMs).toBe(MAX_DELAY_MS);
+      expect(run({ faultType: "timeout", faultRate: 10 }, 0.5).delayMs).toBe(0);
+    });
   });
 
   it("404 explains method mismatch and unknown paths", () => {

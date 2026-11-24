@@ -9,6 +9,7 @@ import { Badge, Button, ErrorText, Field, Input, KeyValueEditor, MatcherEditor, 
 const editable = (r: Rule) => ({
   name: r.name, scenarioId: r.scenarioId, priority: r.priority, isDefault: r.isDefault, conditions: r.conditions as Matcher[],
   status: r.status, headers: r.headers, contentType: r.contentType, body: r.body, delayMs: r.delayMs,
+  faultType: (r.faultType ?? "") as "" | "error" | "malformed" | "timeout", faultRate: r.faultRate,
 });
 type Draft = ReturnType<typeof editable>;
 
@@ -37,7 +38,11 @@ export function RuleCard({ rule, scenarios, sampleParams, soapOperation, positio
 
   const dirty = JSON.stringify(d) !== JSON.stringify(editable(rule));
   useUnsavedGuard(dirty);
-  const save = async () => { const r = await mutate("PATCH", `/rules/${rule.id}`, d, { ok: "Rule saved — live now", silentError: true }); setError(r.error); };
+  const save = async () => {
+    const payload = { ...d, faultType: d.faultType || null, faultRate: d.faultType ? d.faultRate : null };
+    const r = await mutate("PATCH", `/rules/${rule.id}`, payload, { ok: "Rule saved — live now", silentError: true });
+    setError(r.error);
+  };
   const set = <K extends keyof Draft>(k: K, v: Draft[K]) => setD((x) => ({ ...x, [k]: v }));
   const scenarioName = scenarios.find((s) => s.id === rule.scenarioId)?.name;
 
@@ -89,6 +94,7 @@ export function RuleCard({ rule, scenarios, sampleParams, soapOperation, positio
           {rule.conditions.length > 0 && <Badge>{rule.conditions.length} condition{rule.conditions.length > 1 ? "s" : ""}</Badge>}
           {!rule.isDefault && rule.conditions.length === 0 && !rule.scenarioId && <Badge tone="amber">no conditions: always matches</Badge>}
           {rule.delayMs > 0 && <Badge>{rule.delayMs} ms</Badge>}
+          {rule.faultType && <Badge tone="red">fault: {rule.faultType} {rule.faultRate ?? 100}%</Badge>}
           {dirty && <Badge tone="amber">unsaved</Badge>}
         </button>
       </div>
@@ -120,6 +126,21 @@ export function RuleCard({ rule, scenarios, sampleParams, soapOperation, positio
               )}
             </Field>
           )}
+
+          <div className="grid items-start gap-3 sm:grid-cols-[14rem_8rem_1fr]">
+            <Field label="Simulate a failure" hint="Test how your app copes when the provider misbehaves.">
+              <Select value={d.faultType} onChange={(e) => setD((x) => ({ ...x, faultType: e.target.value as Draft["faultType"], faultRate: e.target.value ? x.faultRate ?? 100 : null }))}>
+                <option value="">None</option>
+                <option value="error">Server error (500)</option>
+                <option value="malformed">Cut-off body</option>
+                <option value="timeout">Timeout (60 s)</option>
+              </Select>
+            </Field>
+            <Field label="Of calls (%)" hint={d.faultType ? "1–100" : undefined}>
+              <Input type="number" min={1} max={100} value={d.faultType ? d.faultRate ?? 100 : ""} disabled={!d.faultType} onChange={(e) => set("faultRate", e.target.value === "" ? null : Number(e.target.value))} />
+            </Field>
+            <span />
+          </div>
 
           <div className="grid gap-3 sm:grid-cols-[14rem_1fr]">
             {soapOperation === undefined ? <Field label="Content type"><Input list="content-types" value={d.contentType} onChange={(e) => set("contentType", e.target.value)} className="font-mono" /><datalist id="content-types">{CONTENT_TYPES.map((c) => <option key={c} value={c} />)}</datalist></Field> : <p className="self-end pb-2 text-xs text-zinc-500">Content type follows the client&apos;s SOAP version.</p>}

@@ -31,6 +31,8 @@ const ruleSchema = z.object({
   contentType: z.string().min(1).default("application/json"),
   body: z.string().default(""),
   delayMs: z.number().int().min(0).max(60_000).default(0),
+  faultType: z.enum(["error", "malformed", "timeout"]).nullable().default(null),
+  faultRate: z.number().int().min(1).max(100).nullable().default(null),
 });
 
 const endpointSchema = z.object({
@@ -102,6 +104,7 @@ export async function exportCollection(collectionId: string): Promise<ExportFile
         scenario: r.scenarioId ? scenarioName.get(r.scenarioId) ?? null : null,
         name: r.name, priority: r.priority, isDefault: r.isDefault, conditions: r.conditions, status: r.status,
         headers: r.headers, contentType: r.contentType, body: r.body, delayMs: r.delayMs,
+        faultType: (["error", "malformed", "timeout"] as const).find((t) => t === r.faultType) ?? null, faultRate: r.faultRate,
       })),
     })),
     excluded: { authSchemes: schemes.length, secretVariables: vars.filter((v) => v.isSecret).length },
@@ -171,6 +174,7 @@ export async function importCollection(projectId: string, raw: unknown): Promise
         await tx.insert(responseRules).values(ep.rules.map((r) => ({
           endpointId: e.id, scenarioId: r.scenario ? scenarioId.get(r.scenario) ?? null : null, name: r.name, priority: r.priority,
           isDefault: r.isDefault, conditions: r.conditions, status: r.status, headers: r.headers, contentType: r.contentType, body: r.body, delayMs: r.delayMs,
+          faultType: r.faultType, faultRate: r.faultRate,
         })));
         ruleCount += ep.rules.length;
       }

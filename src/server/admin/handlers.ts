@@ -95,10 +95,12 @@ const ruleInput = z.object({
   contentType: z.string().min(1),
   body: z.string(),
   delayMs: z.number().int().min(0).max(60_000),
+  faultType: z.enum(["error", "malformed", "timeout"]).nullable(),
+  faultRate: z.number().int().min(1).max(100).nullable(),
 });
 const ruleDefaults = {
   name: "New rule", scenarioId: null, priority: 0, isDefault: false, conditions: [], status: 200,
-  headers: {}, contentType: "application/json", body: "{}", delayMs: 0,
+  headers: {}, contentType: "application/json", body: "{}", delayMs: 0, faultType: null, faultRate: null,
 };
 
 const parse = <T extends z.ZodType>(s: T, v: unknown): z.infer<T> => s.parse(v);

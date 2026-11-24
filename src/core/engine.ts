@@ -24,6 +24,8 @@ export interface EngineInput {
   project: ProjectContext;
   /** Absolute URL of this collection's mock root: lets a served WSDL point at the mock instead of the real service */
   baseUrl?: string;
+  /** Source of randomness for simulated failures (0 <= n < 1); tests pass a fixed one */
+  random?: () => number;
 }
 
 const compiledCache = new WeakMap<EndpointConfig, CompiledPath>();
@@ -173,7 +175,7 @@ function renderErrorTemplate(tpl: ErrorTemplate | null, fallback: ErrorTemplate,
   }
 }
 
-export function handle({ req, collection, project, baseUrl }: EngineInput): EngineResponse {
+export function handle({ req, collection, project, baseUrl, random = Math.random }: EngineInput): EngineResponse {
   const base = Math.min(project.globalLatencyMs, MAX_DELAY_MS);
 
   if (project.outage) {
@@ -292,13 +294,28 @@ export function handle({ req, collection, project, baseUrl }: EngineInput): Engi
       headers.set(k.toLowerCase(), renderTemplate(v, tctx));
     }
     headers.set("content-type", soap ? soapContentType(soap.version) : rule.contentType);
-    return {
-      status: rule.status,
-      headers: Object.fromEntries(headers),
-      body,
-      delayMs: Math.min(base + rule.delayMs, MAX_DELAY_MS),
-      log: { ...logBase, explanation: why },
-    };
+    let status = rule.status;
+    let outBody = body;
+    let delayMs = Math.min(base + rule.delayMs, MAX_DELAY_MS);
+    let explanation = why;
+    if (rule.faultType) {
+      const rate = rule.faultRate ?? 100;
+      if (random() * 100 < rate) {
+        explanation = `${why}; simulated fault "${rule.faultType}" (${rate}% of calls)`;
+        if (rule.faultType === "error") {
+          status = 500;
+          outBody = soap ? faultEnvelope(soap.version, "Server", "Simulated server error") : JSON.stringify({ error: "Simulated server error" });
+          headers.set("content-type", soap ? soapContentType(soap.version) : "application/json");
+        } else if (rule.faultType === "malformed") {
+          outBody = body.slice(0, Math.max(1, Math.floor(body.length / 2)));
+        } else {
+          delayMs = MAX_DELAY_MS;
+        }
+      } else {
+        explanation = `${why}; fault "${rule.faultType}" not triggered this time (${rate}% of calls)`;
+      }
+    }
+    return { status, headers: Object.fromEntries(headers), body: outBody, delayMs, log: { ...logBase, explanation } };
   } catch (e) {
     const message = e instanceof TemplateError ? e.message : "unexpected render error";
     if (soap) return soapFault(soap.version, 500, "Server", `Mock template failed to render: ${message}`, { ...logBase, explanation: `${why}, but its template failed: ${message}` }, base);

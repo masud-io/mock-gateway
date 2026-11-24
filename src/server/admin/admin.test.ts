@@ -118,6 +118,18 @@ describe("admin API", () => {
     expect((await api("POST", `/rules/${crypto.randomUUID()}/duplicate`)).status).toBe(404);
   });
 
+  it("a rule's simulated failure is validated, saved and live", async () => {
+    const def = (await api("GET", `/endpoints/${endpointId}`)).data.rules.find((r: any) => r.isDefault);
+    expect((await api("PATCH", `/rules/${def.id}`, { faultType: "explode", faultRate: 50 })).status).toBe(400);
+    expect((await api("PATCH", `/rules/${def.id}`, { faultType: "error", faultRate: 101 })).status).toBe(400);
+    expect((await api("PATCH", `/rules/${def.id}`, { faultType: "error", faultRate: 100 })).data).toMatchObject({ faultType: "error", faultRate: 100 });
+    const hit = await callMock("acme-corp/checkout/payments/orders/1");
+    expect(hit.status).toBe(500);
+    expect(await hit.json()).toEqual({ error: "Simulated server error" });
+    expect((await api("PATCH", `/rules/${def.id}`, { faultType: null, faultRate: null })).status).toBe(200);
+    expect((await callMock("acme-corp/checkout/payments/orders/1")).status).toBe(201);
+  });
+
   it("exports an API and imports it as a new one, without secrets and without overwriting", async () => {
     const col = (await api("POST", "/collections", { projectId, name: "Transfer Me" })).data;
     const ep = (await api("POST", "/endpoints", { collectionId: col.id, name: "Ping", method: "POST", path: "/ping" })).data;
@@ -125,7 +137,7 @@ describe("admin API", () => {
     await api("PATCH", `/rules/${def.id}`, { name: "ok", status: 202, body: '{"pong":"{{vars.greeting}}"}' });
     const scenarioId = (await api("POST", `/projects/${projectId}/scenarios`, { name: "export-fails" })).data.id;
     expect((await api("POST", `/endpoints/${ep.id}/rules`, {
-      name: "declined", scenarioId, status: 402, body: '{"error":"declined"}', priority: 5,
+      name: "declined", scenarioId, status: 402, body: '{"error":"declined"}', priority: 5, faultType: "malformed", faultRate: 40,
       conditions: [{ source: "body", expr: "$.amount", op: "not_equals", value: "1" }],
     })).status).toBe(201);
     await api("PUT", "/variables", { scope: "collection", scopeId: col.id, key: "greeting", value: "hello" });
@@ -149,6 +161,7 @@ describe("admin API", () => {
     expect(await res.json()).toEqual({ pong: "hello" });
     const back = (await api("GET", `/collections/${imp.data.id}/export`)).data;
     expect(back.endpoints[0].rules).toEqual(exp.data.endpoints[0].rules); // round trip is lossless
+    expect(back.endpoints[0].rules.find((r: any) => r.scenario)).toMatchObject({ faultType: "malformed", faultRate: 40 });
     expect(back.endpoints[0].rules.find((r: any) => r.scenario)?.conditions).toEqual([{ source: "body", expr: "$.amount", op: "not_equals", value: "1" }]);
     expect((await callMock("acme-corp/checkout/transfer-me/ping", { method: "POST", body: "{}", headers: { "content-type": "application/json" } })).status).toBe(202);
 

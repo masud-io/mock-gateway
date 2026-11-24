@@ -94,6 +94,7 @@ async function loadRuntime(clientSlug: string, projectSlug: string): Promise<Run
           .map<RuleConfig>((r) => ({
             id: r.id, name: r.name, scenarioId: r.scenarioId, priority: r.priority, isDefault: r.isDefault,
             conditions: r.conditions, status: r.status, headers: r.headers, contentType: r.contentType, body: r.body, delayMs: r.delayMs,
+            faultType: (["error", "malformed", "timeout"] as const).find((t) => t === r.faultType) ?? null, faultRate: r.faultRate,
           })),
       }));
 

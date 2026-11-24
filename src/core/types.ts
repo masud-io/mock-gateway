@@ -44,7 +44,13 @@ export interface RuleConfig {
   contentType: string;
   body: string;
   delayMs: number;
+  /** Simulated failure: replaces the response with probability faultRate% (null = always, once a type is set) */
+  faultType: FaultType | null;
+  faultRate: number | null;
 }
+
+/** error: a 500 instead of the answer. malformed: the body is cut in half. timeout: the answer arrives after the maximum delay. */
+export type FaultType = "error" | "malformed" | "timeout";
 
 export interface CredentialConfig {
   label: string;
