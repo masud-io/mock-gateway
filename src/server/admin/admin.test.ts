@@ -309,8 +309,27 @@ describe("admin API", () => {
     expect(res.status).toBe(200);
     expect(t).toContain("<Amount>99.00</Amount>");
     expect(t).toContain("<Status>OK</Status>");
-    // Not an envelope: say so
-    expect((await api("POST", `/collections/${col.id}/wizard/analyze`, { requestBody: "<a/>", responseBody: "<b/>" })).status).toBe(400);
+    // Not XML at all: say so
+    expect((await api("POST", `/collections/${col.id}/wizard/analyze`, { requestBody: "not xml", responseBody: "<b/>" })).status).toBe(400);
+  });
+
+  it("SOAP wizard: bare Body XML gets a default envelope, and a path only changes the copied URL", async () => {
+    const col = (await api("POST", "/collections", { projectId, name: "Tokens SOAP", protocol: "soap" })).data;
+    const a = (await api("POST", `/collections/${col.id}/wizard/analyze`, {
+      requestBody: "<GetTokenRequest><InputParameter><BankCode>73</BankCode></InputParameter></GetTokenRequest>",
+      responseBody: "<GetTokenResponse Response=\"1\"><OutputParameter><BankCode>73</BankCode></OutputParameter></GetTokenResponse>",
+    })).data;
+    expect(a).toMatchObject({ soap: true, operation: "GetTokenRequest", soapVersion: "1.1" });
+    const created = await api("POST", `/collections/${col.id}/wizard/create`, { name: "Get Token", method: "POST", path: "/getToken", status: 200, contentType: a.contentType, body: a.body, operation: a.operation });
+    expect(created.status).toBe(201);
+    expect((await api("GET", `/endpoints/${created.data.id}`)).data.endpoint.path).toBe("/getToken");
+    // The path is not checked: the Body picks the endpoint, with or without it
+    const env = '<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/"><s:Body><GetTokenRequest><InputParameter><BankCode>73</BankCode></InputParameter></GetTokenRequest></s:Body></s:Envelope>';
+    for (const suffix of ["", "/getToken", "/anything/else"]) {
+      const res = await callMock(`acme-corp/checkout/tokens-soap${suffix}`, { method: "POST", headers: { "content-type": "text/xml" }, body: env });
+      expect(res.status).toBe(200);
+      expect(await res.text()).toContain("<GetTokenResponse");
+    }
   });
 
   it("blocks cross-origin writes, non-JSON bodies, bad JSON, and unknown routes", async () => {
