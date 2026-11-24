@@ -64,7 +64,14 @@ export default function Home() {
       {data?.length === 0 && <Empty>Nothing here yet. Create a client, then a project, then add a collection for each third-party API.</Empty>}
 
       {data?.map((c) => (
-        <Card key={c.id} title={c.name} actions={<Badge>{c.projects.length} project{c.projects.length === 1 ? "" : "s"}</Badge>}>
+        <Card key={c.id} title={c.name} actions={<>
+          <Badge>{c.projects.length} project{c.projects.length === 1 ? "" : "s"}</Badge>
+          <Button small variant="danger" onClick={async () => {
+            const n = c.projects.length;
+            if (!confirm(`Delete client "${c.name}"?${n ? ` Its ${n} project${n === 1 ? "" : "s"} and all their mocks stop responding immediately.` : ""}`)) return;
+            await mutate("DELETE", `/clients/${c.id}`, undefined, { ok: "Client deleted" });
+          }}>Delete</Button>
+        </>}>
           {c.projects.length === 0 ? (
             <p className="text-sm text-zinc-500">No projects yet.</p>
           ) : (
